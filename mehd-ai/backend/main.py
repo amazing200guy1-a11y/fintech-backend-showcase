@@ -51,6 +51,7 @@ from logging.handlers import RotatingFileHandler
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -61,7 +62,6 @@ from broadcaster import broadcaster
 from auto_execution_worker import auto_execution_worker
 from cleanup_worker import cleanup_worker
 from weekly_scan_worker import weekly_scan_worker
-from position_health_worker import health_worker
 from truth_engine_worker import truth_engine_worker
 from personalization_worker import personalization_worker
 from virtual_stop_worker import virtual_stop_worker
@@ -256,9 +256,6 @@ async def lifespan(app: FastAPI):
         # Start the Weekly Scan Worker
         weekly_scan_worker.start()
 
-        # Start the Position Health Worker
-        health_worker.start()
-
         # Start the Truth Engine Worker (Scoreboard stats)
         truth_engine_worker.start()
 
@@ -268,16 +265,14 @@ async def lifespan(app: FastAPI):
         # Start the Sniper Engine (Virtual Stops)
         virtual_stop_worker.start()
 
-        # Wire push notifications — fire FCM alerts for high-conviction signals
-        from notification_service import send_high_conviction_alert
+        # Wire push notifications — "The Don Decided" FCM alerts for >= 92% conviction signals
+        from push_notification_service import push_service
         async def _on_strong_signal(notification: dict):
-            """Called by Broadcaster when a signal exceeds 80% confidence."""
-            await send_high_conviction_alert(
-                symbol=notification.get("symbol", ""),
-                direction=notification.get("direction", ""),
-                confidence=notification.get("confidence", 0),
-                vote_count=notification.get("vote_count", 0),
-            )
+            """Called by Broadcaster when a signal exceeds 92% conviction.
+            Sends directly to individual registered device tokens (not topic broadcast)
+            to prevent double-notifications for users subscribed to both channels.
+            """
+            await push_service.send_don_decided_alert(notification)
         broadcaster.set_notification_callback(_on_strong_signal)
 
         logger.info("✓ Broadcaster daemon started — Underground research active")
@@ -375,7 +370,6 @@ async def lifespan(app: FastAPI):
     auto_execution_worker.stop()
     cleanup_worker.stop()
     weekly_scan_worker.stop()
-    health_worker.stop()
     truth_engine_worker.stop()
     personalization_worker.stop()
     virtual_stop_worker.stop()
@@ -635,3 +629,120 @@ async def get_track_record(request: Request, uid: str = Depends(get_current_user
     """Returns the cumulative track record stats — win rate, saves, etc."""
     import track_record
     return track_record.get_stats()
+
+
+# ── Broker Health Endpoint ──
+@app.get("/broker/health")
+@analysis_limiter.limit("60/minute")
+async def get_broker_health(request: Request, uid: str = Depends(get_current_user)):
+    """
+    Returns broker health scores from the community incident database.
+    In DEMO_MODE, returns realistic mock data so the Flutter client always has data.
+    In live mode, returns the daily-aggregated system_metrics/broker_health document.
+    """
+    import os
+    from broker_scanner import get_demo_health
+    demo_mode = os.getenv("DEMO_MODE", "true").lower() == "true"
+    if demo_mode:
+        return get_demo_health()
+    live_data = await storage.get("system_metrics", "broker_health")
+    if live_data:
+        return live_data
+    # Fallback to demo if live data not yet generated (first day of deployment)
+    return get_demo_health()
+
+
+# ── Broker Dispute / Report Endpoint ──
+class BrokerReportRequest(BaseModel):
+    broker_id: str
+    report_type: str   # "WITHDRAWAL_DELAY" | "SPREAD_MANIPULATION" | "OTHER"
+    description: str
+
+
+@app.post("/broker/report")
+@analysis_limiter.limit("5/minute")
+async def submit_broker_report(
+    request: Request,
+    body: BrokerReportRequest,
+    uid: str = Depends(get_current_user),
+):
+    """
+    Allows an authenticated user to submit a community dispute report against a broker.
+    Covers Pillar 3 (Withdrawal Honesty) and Pillar 4 (Spread Stability).
+
+    Each report is written as one Firestore document — event-driven, near-zero billing.
+    The daily broker health aggregation reads these and factors them into the score.
+    """
+    from datetime import datetime, timezone
+
+    # Input validation
+    allowed_types = {"WITHDRAWAL_DELAY", "SPREAD_MANIPULATION", "OTHER"}
+    broker_id = body.broker_id.strip().lower()
+    report_type = body.report_type.strip().upper()
+
+    if not broker_id or len(broker_id) > 50:
+        raise HTTPException(status_code=400, detail="Invalid broker_id.")
+    if report_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"report_type must be one of: {allowed_types}")
+    if not body.description or len(body.description.strip()) < 10:
+        raise HTTPException(status_code=400, detail="Description must be at least 10 characters.")
+    if len(body.description) > 500:
+        raise HTTPException(status_code=400, detail="Description must be under 500 characters.")
+
+    now = datetime.now(timezone.utc)
+    report_key = f"{broker_id}_{uid[:8]}_{now.strftime('%Y%m%d_%H%M%S')}"
+    report_data = {
+        "broker_id":   broker_id,
+        "user_id":     uid,
+        "report_type": report_type,
+        "description": body.description.strip(),
+        "timestamp":   now.isoformat(),
+        "status":      "PENDING",   # Future: REVIEWED | CONFIRMED | REJECTED
+    }
+
+    try:
+        await storage.set("broker_reports", report_key, report_data)
+        logger.info("📋 Broker dispute report received | %s | %s | user=%s", broker_id.upper(), report_type, uid[:8])
+        return {"status": "submitted", "message": "Thank you. Your report has been received and will be reviewed by the community."}
+    except Exception as e:
+        logger.error("Failed to save broker report: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to submit report. Please try again.")
+
+
+# ── FCM Registration Endpoint ──
+class FcmTokenRequest(BaseModel):
+    token: str
+    platform: str  # "android" | "ios" | "web"
+
+
+@app.post("/user/fcm")
+async def update_fcm_token(
+    body: FcmTokenRequest,
+    uid: str = Depends(get_current_user),
+):
+    """
+    Registers or updates the authenticated user's FCM push notification token.
+    Stores the token in the Firestore 'user_fcm_tokens' collection.
+    """
+    from datetime import datetime, timezone
+
+    token = body.token.strip()
+    platform = body.platform.strip().lower()
+
+    if not token:
+        raise HTTPException(status_code=400, detail="token is required")
+    if platform not in {"android", "ios", "web"}:
+        raise HTTPException(status_code=400, detail="platform must be one of: android, ios, web")
+
+    try:
+        await storage.set("user_fcm_tokens", uid, {
+            "token": token,
+            "platform": platform,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info("🔔 Registered FCM token for user: %s (platform: %s)", uid[:8], platform)
+        return {"status": "success", "message": "FCM token updated."}
+    except Exception as e:
+        logger.error("Failed to update FCM token for user %s: %s", uid, e)
+        raise HTTPException(status_code=500, detail="Failed to update FCM token.")
+

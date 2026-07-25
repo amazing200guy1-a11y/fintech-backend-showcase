@@ -54,7 +54,7 @@ class LiveCalculator extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(child: _buildStatWidget('Avg Confidence', '${avgConfidence.toStringAsFixed(1)}%', MehdAiTheme.textPrimary)),
+              Flexible(child: _buildStatWidget('Avg Confidence', '${(avgConfidence * 100).toStringAsFixed(1)}%', MehdAiTheme.textPrimary)),
               Flexible(child: _buildStatWidget('Math Discrepancy', _calculateDiscrepancy(), MehdAiTheme.textSecondary)),
               Flexible(child: _buildStatWidget('Models Active', '${mathVotes.length}/3', MehdAiTheme.blue)),
             ],
@@ -68,7 +68,7 @@ class LiveCalculator extends StatelessWidget {
     if (mathVotes.length < 2) return '0.0%';
     double maxConf = mathVotes.map((v) => v.confidence).reduce((a, b) => a > b ? a : b);
     double minConf = mathVotes.map((v) => v.confidence).reduce((a, b) => a < b ? a : b);
-    return '${(maxConf - minConf).toStringAsFixed(1)}%';
+    return '${((maxConf - minConf) * 100).toStringAsFixed(1)}%';
   }
 
   Widget _buildStatWidget(String label, String value, Color valueColor) {

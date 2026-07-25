@@ -22,6 +22,7 @@ import random
 from storage import storage
 from models import AutopilotConfig, TradeOrder, Direction, RiskDecision, get_pip_size
 from risk_engine import HardRiskKernel
+from hardened_kill_switch import hardened_kill_switch
 
 logger = logging.getLogger("mehd.auto_execution")
 
@@ -330,6 +331,21 @@ class AutoExecutionWorker:
         if not is_market_open():
             logger.info(f"MARKET CLOSED: Sniper not armed for {symbol}. Forex markets are closed.")
             return
+
+        # ── ECONOMIC NEWS BLACKOUT GATE ──
+        # Do not arm sniper if high-impact news is within 60 minutes or active
+        try:
+            from economic_calendar import calendar_gateway
+            mins_to_news = calendar_gateway.get_minutes_to_next_high_impact_news(symbol)
+            if mins_to_news is not None:
+                if 0 <= mins_to_news <= 60:
+                    logger.warning(f"BLOCKED: News blackout active for {symbol}. High-impact news is in {mins_to_news} minutes. Skipping sniper.")
+                    return
+                elif mins_to_news < 0:
+                    logger.warning(f"BLOCKED: Post-news volatility window active for {symbol}. Event was {-mins_to_news} minutes ago. Skipping sniper.")
+                    return
+        except Exception as e:
+            logger.error(f"Error checking news blackout for {symbol}: {e}")
             
         current_price = signal_data.get("current_price", 0.0)
         if current_price <= 0.0:
@@ -614,6 +630,23 @@ class AutoExecutionWorker:
                 analysis_price = signal_data.get("current_price", 0.0)
                 if not self._check_killswitch(analysis_price, live_price, symbol):
                     logger.warning(f"Master Exec: Stale Price Killswitch triggered on {symbol}. Aborted.")
+                    continue
+
+                # ── HARDENED KILL SWITCH — Multi-Condition Pre-Execution Gate ──
+                # Checks: oracle discrepancy, news heartbeat, execution latency.
+                # This runs BEFORE any order reaches the broker.
+                pip_size_for_ks = get_pip_size(symbol)
+                hks_result = hardened_kill_switch.evaluate_pre_execution_safety(
+                    symbol=symbol,
+                    broker_price=live_price,
+                    oracle_price=analysis_price,
+                    pip_size=pip_size_for_ks,
+                )
+                if hks_result["status"] == "HALT":
+                    logger.warning(
+                        f"Master Exec: Hardened Kill Switch HALT on {symbol}. Reason: {hks_result['reason']}"
+                    )
+                    self._execution_queue.task_done()
                     continue
 
                 consensus = signal_data.get("consensus", 0.0)

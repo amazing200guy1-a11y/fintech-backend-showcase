@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 
 from storage import storage
+import broker_scanner
 
 logger = logging.getLogger("mehd.cleanup_worker")
 
@@ -36,6 +37,7 @@ class CleanupWorker:
                 await self._cleanup_pending_signals()
                 await self._cleanup_expired_broadcasts()
                 await self._reset_daily_budget_if_needed()
+                await self._aggregate_broker_health_if_due()
             except asyncio.CancelledError:
                 break  # Graceful shutdown — don't log as error
             except Exception as e:
@@ -62,6 +64,16 @@ class CleanupWorker:
                         logger.info("🧹 Midnight reached. Daily API budget reset to $0.00.")
                 except ValueError:
                     pass
+
+    async def _aggregate_broker_health_if_due(self):
+        """Runs the broker health aggregation once per day (at the first hourly cycle after midnight)."""
+        last_run = await storage.get("system_config", "broker_health_last_run")
+        today    = datetime.now(timezone.utc).date().isoformat()
+        if last_run and last_run.get("date") == today:
+            return  # Already ran today
+        await broker_scanner.aggregate_broker_health()
+        await storage.set("system_config", "broker_health_last_run", {"date": today})
+        logger.info("📊 Broker health aggregation completed for %s.", today)
 
     async def _cleanup_morning_briefings(self):
         """Deletes morning briefing logs that have passed their expires_at TTL."""

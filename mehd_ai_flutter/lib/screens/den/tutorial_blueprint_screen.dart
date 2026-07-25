@@ -10,6 +10,13 @@ import 'package:mehd_ai_flutter/screens/broker_screen.dart';
 import 'package:mehd_ai_flutter/screens/pulse_trading_screen.dart';
 import 'package:mehd_ai_flutter/screens/journey_screen.dart';
 import 'package:mehd_ai_flutter/screens/terms_screen.dart';
+import 'package:mehd_ai_flutter/screens/autopilot_command_center.dart';
+import 'package:mehd_ai_flutter/screens/scoreboard_screen.dart';
+import 'package:mehd_ai_flutter/screens/compliance_screen.dart';
+import 'package:mehd_ai_flutter/screens/constitution_screen.dart';
+import 'package:mehd_ai_flutter/screens/community_fund_screen.dart';
+import 'package:mehd_ai_flutter/screens/security_screen.dart';
+
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/widgets/responsive_layout.dart';
 import 'package:flutter/services.dart';
@@ -72,7 +79,7 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'War Room',
               subtitle: 'AI Team',
               description:
-                  'Your personal AI trading team. 11 smart bots look at the charts and vote on whether a trade is safe. If they don\'t agree, no trade happens.',
+                  'Your personal AI trading team. 11 smart agents look at the charts and vote on whether a trade is safe. If they don\'t agree on a high enough consensus, no trade fires.',
               icon: Icons.radar,
               color: MehdAiTheme.red,
               routeBuilder: (ctx) => const WarRoomScreen(isAnalyzing: false)),
@@ -81,9 +88,17 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'The Strategy',
               subtitle: 'Global Events',
               description:
-                  'The big picture scanner. It watches world events and economic news to make sure the AI doesn\'t trade during major, unpredictable crashes.',
+                  'The big-picture macro scanner. It watches world events and economic releases to make sure the AI never fires a trade during a major unpredictable crash.',
               icon: Icons.account_balance,
               color: MehdAiTheme.gold),
+          BlueprintNode(
+              id: 'news_blackout',
+              title: 'News Blackout',
+              subtitle: 'Pre-Event Guard',
+              description:
+                  'An automatic safety gate. 30 minutes before any high-impact economic event (like CPI or NFP), The Den completely stops taking new trades. It resumes automatically once the storm passes.',
+              icon: Icons.event_busy_rounded,
+              color: MehdAiTheme.red),
           BlueprintNode(
               id: 'olympus',
               title: 'Olympus',
@@ -97,15 +112,15 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'The Research',
               subtitle: 'Social News',
               description:
-                  'The app\'s social scanner. It reads news and social media constantly to see if people feel positive or negative about the market today.',
+                  'The social scanner. It reads news and sentiment constantly to see if people feel positive or negative about the market today.',
               icon: Icons.language,
               color: MehdAiTheme.purple),
           BlueprintNode(
               id: 'votes',
-              title: 'Agent Votes',
+              title: 'Rejection Feed',
               subtitle: 'AI Logic',
               description:
-                  'The transparent log book. Here you can read exactly why the AI decided to accept or reject a trade in completely simple English.',
+                  'The transparent audit log. Read exactly why the AI accepted or rejected every trade in plain English — no black boxes here.',
               icon: Icons.how_to_vote,
               color: MehdAiTheme.green,
               routeBuilder: (ctx) => const RejectionFeedScreen()),
@@ -118,6 +133,15 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
         color: MehdAiTheme.blue,
         nodes: [
           BlueprintNode(
+              id: 'autopilot',
+              title: 'Autopilot',
+              subtitle: 'Auto Execution',
+              description:
+                  'The AI fires trades on your behalf — automatically. You set the conviction threshold (e.g. only execute when all 11 agents agree above 92%), and The Den does the rest. Full control, zero emotion.',
+              icon: Icons.smart_toy_rounded,
+              color: MehdAiTheme.blue,
+              routeBuilder: (ctx) => const AutopilotCommandCenter()),
+          BlueprintNode(
               id: 'terminal',
               title: 'Terminal',
               subtitle: 'Live Data',
@@ -127,10 +151,10 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               color: MehdAiTheme.blue),
           BlueprintNode(
               id: 'pulse_trading',
-              title: 'Pulse Trading',
+              title: 'Neuro Pulse',
               subtitle: 'Manual Mode',
               description:
-                  'Manual trading made simple. A clean interface where you can quickly press buy or sell instantly based on your own human instinct.',
+                  'Manual trading made simple. A clean interface where you can quickly press buy or sell instantly based on your own instinct.',
               icon: Icons.waves,
               color: MehdAiTheme.purple,
               routeBuilder: (ctx) => const PulseTradingScreen()),
@@ -147,7 +171,7 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'Positions',
               subtitle: 'Active Trades',
               description:
-                  'Track the trades you are currently in. Automatically watch your profits grow and set automatic safety stops if the market drops.',
+                  'Track the trades you are currently in. Watch your floating profit and loss live, with automatic virtual stop-loss enforcement running in the background.',
               icon: Icons.work,
               color: MehdAiTheme.gold),
           BlueprintNode(
@@ -155,7 +179,7 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'History',
               subtitle: 'Past Trades',
               description:
-                  'Your personal trading history. See a list of every trade you have ever made, along with your personal win rate and overall profits.',
+                  'Your personal trading history. See every trade you have ever made, along with your win rate and overall profits.',
               icon: Icons.history,
               color: Colors.white,
               routeBuilder: (ctx) => const HistoryScreen()),
@@ -164,16 +188,51 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'Sandbox Mode',
               subtitle: 'Practice Mode',
               description:
-                  'A safe practice mode. Watch the AI run on its own using fake money so you can verify its accuracy without risking a single penny.',
+                  'A safe practice mode. Watch the AI trade on its own using \$10,000 demo money so you can verify its accuracy without risking a single penny.',
               icon: Icons.visibility_off,
               color: Colors.grey,
               routeBuilder: (ctx) => const SandboxModeScreen()),
         ],
       ),
       BlueprintCategory(
+        title: 'PERFORMANCE & PROOF',
+        description:
+            'Accountability screens. Real data. Real results. Nothing hidden.',
+        color: MehdAiTheme.green,
+        nodes: [
+          BlueprintNode(
+              id: 'truth_engine',
+              title: 'Truth Engine',
+              subtitle: '30-Day Dashboard',
+              description:
+                  'The institutional accountability dashboard. Shows the 30-day win rate trajectory, total signals fired, capital protected, and each agent\'s individual accuracy score. This is proof — not marketing.',
+              icon: Icons.show_chart_rounded,
+              color: MehdAiTheme.green,
+              routeBuilder: (ctx) => const ScoreboardScreen()),
+          BlueprintNode(
+              id: 'certified_alpha',
+              title: 'Certified Alpha',
+              subtitle: 'Your Milestones',
+              description:
+                  'Earn and share your Bronze, Silver, and Gold achievement cards. Each milestone proves you have reached a real performance threshold. Download and share your certificate with pride.',
+              icon: Icons.military_tech_rounded,
+              color: MehdAiTheme.gold,
+              routeBuilder: (ctx) => const JourneyScreen(showBack: true)),
+          BlueprintNode(
+              id: 'compliance',
+              title: 'Compliance Certificate',
+              subtitle: 'Intelligence Cert',
+              description:
+                  'Download your official Certificate of Intelligence. A formal document showing the app operates under AES-256 encryption, Zero-Trust protocols, and 11-Agent verified execution standards.',
+              icon: Icons.verified_rounded,
+              color: MehdAiTheme.blue,
+              routeBuilder: (ctx) => const ComplianceScreen()),
+        ],
+      ),
+      BlueprintCategory(
         title: 'COMMUNITY',
         description:
-            'The Social Topology. Learn tracking algorithms alongside other quantitative operators.',
+            'The Social Topology. Learn alongside other quantitative operators.',
         color: MehdAiTheme.gold,
         nodes: [
           BlueprintNode(
@@ -181,25 +240,51 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'The Network',
               subtitle: 'Community',
               description:
-                  'The social network. Connect with other users on the app, share your trading ideas, and learn safely from the growing community.',
+                  'The social network. Connect with other users, share your trading ideas, and learn safely from the growing community of MEHD AI operators.',
               icon: Icons.group_work,
               color: MehdAiTheme.gold,
               routeBuilder: (ctx) => const WarRoomCommunityScreen()),
           BlueprintNode(
-              id: 'journey',
-              title: 'The Journey',
-              subtitle: 'Your Progress',
+              id: 'community_fund',
+              title: 'Community Fund',
+              subtitle: 'Shared Capital',
               description:
-                  'Your profile page. Watch your account grow, track your personal trading goals, and unlock new features as you improve your skills.',
-              icon: Icons.explore,
+                  'A shared mission fund. As the community grows, a portion of platform revenue flows into a collective fund that rewards top-performing community members.',
+              icon: Icons.savings_rounded,
               color: MehdAiTheme.green,
-              routeBuilder: (ctx) => const JourneyScreen()),
+              routeBuilder: (ctx) => const CommunityFundScreen()),
+        ],
+      ),
+      BlueprintCategory(
+        title: 'LAWS & PROTECTION',
+        description:
+            'The Three Unbreakable Laws and the security manifesto. The Den enforces these automatically.',
+        color: MehdAiTheme.red,
+        nodes: [
+          BlueprintNode(
+              id: 'constitution',
+              title: 'Holy Trinity',
+              subtitle: 'The 3 Laws',
+              description:
+                  'Three laws that can never be broken: (I) Maximum risk per trade, (II) Maximum trades per day, (III) Minimum AI consensus required. The Den enforces all three automatically — no exceptions.',
+              icon: Icons.gavel_rounded,
+              color: MehdAiTheme.red,
+              routeBuilder: (ctx) => const ConstitutionScreen()),
+          BlueprintNode(
+              id: 'security',
+              title: 'Security Promise',
+              subtitle: 'Anti-Broker',
+              description:
+                  'The security manifesto. A formal, unbreakable set of commitments protecting you against broker manipulation, spread abuse, and slippage fraud.',
+              icon: Icons.security_rounded,
+              color: MehdAiTheme.green,
+              routeBuilder: (ctx) => const SecurityScreen()),
         ],
       ),
       BlueprintCategory(
         title: 'SYSTEM CORE',
         description:
-            'Infrastructure and Rules. The foundational architecture powering the engine.',
+            'Infrastructure and configuration. The foundational architecture powering the engine.',
         color: Colors.white,
         nodes: [
           BlueprintNode(
@@ -207,7 +292,7 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'THE DEN',
               subtitle: 'The Core App',
               description:
-                  'The main dashboard of the entire app. Everything connects here, making it simple to navigate between your tools and trades.',
+                  'The main dashboard of the entire app. Everything connects here, making it simple to navigate between your tools and live trades.',
               icon: Icons.hub,
               color: Colors.white),
           BlueprintNode(
@@ -215,16 +300,16 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'Data Moat',
               subtitle: 'Security Vault',
               description:
-                  'The security vault. This guarantees that your personal passwords and financial data are deeply encrypted and never leave your phone.',
+                  'The security vault. Your personal passwords and financial data are deeply encrypted and never shared with third parties.',
               icon: Icons.shield,
               color: MehdAiTheme.blue,
               routeBuilder: (ctx) => const DataMoatScreen()),
           BlueprintNode(
               id: 'accounts',
-              title: 'Accounts',
+              title: 'Broker Bridge',
               subtitle: 'Connections',
               description:
-                  'Connect the app to the real world. Easily link your real exchange accounts (like MetaTrader or Binance) directly to the app here.',
+                  'Connect the app to the real world. Link your MetaTrader, ECN, or exchange account. Monitor latency, spread stability, and withdrawal scores in real-time.',
               icon: Icons.account_box,
               color: MehdAiTheme.red,
               routeBuilder: (ctx) => const BrokerScreen()),
@@ -233,7 +318,7 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'Settings',
               subtitle: 'Preferences',
               description:
-                  'Control how the app works. Quickly switch from practice trading to real-money trading, and customize your app to fit your style.',
+                  'Control how the app works. Switch between paper and live trading, adjust your lot size, set conviction thresholds, and configure autopilot behavior.',
               icon: Icons.settings,
               color: Colors.grey,
               routeBuilder: (ctx) => const SettingsScreen()),
@@ -242,7 +327,7 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
               title: 'Terms',
               subtitle: 'Our Rules',
               description:
-                  'The core rules of the app. Read about how we protect your money and why we designed this engine to put your capital safety first.',
+                  'The core rules of the app. Read how we protect your money and why we designed this engine to put your capital safety above everything else.',
               icon: Icons.gavel,
               color: Colors.grey,
               routeBuilder: (ctx) => const TermsScreen()),
@@ -250,6 +335,7 @@ class _TutorialBlueprintScreenState extends State<TutorialBlueprintScreen>
       ),
     ];
   }
+
 
   @override
   void dispose() {

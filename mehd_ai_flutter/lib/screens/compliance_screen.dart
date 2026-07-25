@@ -1,7 +1,15 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:mehd_ai_flutter/utils/file_exporter.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
-import 'dart:ui';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ComplianceScreen extends StatefulWidget {
   const ComplianceScreen({super.key});
@@ -12,6 +20,8 @@ class ComplianceScreen extends StatefulWidget {
 
 class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animController;
+  final GlobalKey _certKey = GlobalKey();
+  bool _isDownloading = false;
 
   @override
   void initState() {
@@ -91,7 +101,9 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
   }
 
   Widget _buildCertificate() {
-    return ClipRRect(
+    return RepaintBoundary(
+      key: _certKey,
+      child: ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -125,21 +137,25 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
           },
           child: Column(
             children: [
-              // Seal with glow
+              // Logo seal — pill shaped to respect the wide 16:9 logo aspect ratio
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
+                  borderRadius: BorderRadius.circular(12),
+                  gradient: LinearGradient(
                     colors: [
-                      MehdAiTheme.gold.withOpacity(0.15),
+                      MehdAiTheme.gold.withOpacity(0.12),
                       Colors.transparent,
                     ],
-                    radius: 0.8,
                   ),
                   border: Border.all(color: MehdAiTheme.gold.withOpacity(0.3)),
                 ),
-                child: const Icon(Icons.verified, color: MehdAiTheme.gold, size: 48),
+                child: Image.asset(
+                  'assets/images/mehd_logo.png',
+                  height: 36,
+                  // No width — Flutter auto-calculates from the real aspect ratio
+                  color: MehdAiTheme.gold,
+                ),
               ),
               const SizedBox(height: 20),
               Text(
@@ -162,6 +178,21 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              Builder(builder: (ctx) {
+                final user = FirebaseAuth.instance.currentUser;
+                final name = user?.displayName ?? 'TRADER';
+                return Text(
+                  'ISSUED TO: ${name.toUpperCase()}',
+                  style: GoogleFonts.jetBrainsMono(
+                    color: MehdAiTheme.gold,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2.0,
+                  ),
+                  textAlign: TextAlign.center,
+                );
+              }),
               const SizedBox(height: 16),
               Text(
                 'This institution is operating under Mehd AI Den Analysis™ execution standards.\nAll algorithmic risk limits are strictly enforced by the HardRiskKernel.',
@@ -186,16 +217,64 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Certificate downloaded to your device.'),
-                      backgroundColor: MehdAiTheme.gold,
-                    ));
+                  onPressed: _isDownloading ? null : () async {
+                    final box = context.findRenderObject() as RenderBox?;
+                    setState(() => _isDownloading = true);
+                    try {
+                      final boundary = _certKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+                      if (boundary == null) throw Exception('Boundary not found');
+                      final image = await boundary.toImage(pixelRatio: 3.0);
+                      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                      if (byteData == null) throw Exception('Failed to encode image');
+                      final pngBytes = byteData.buffer.asUint8List();
+                      final filename = 'mehd_ai_certificate.png';
+
+                      if (kIsWeb) {
+                        savePngBytes(pngBytes, filename);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              backgroundColor: Color(0xFF1A2A1A),
+                              content: Text(
+                                '✅ Certificate downloaded to your Downloads folder!',
+                                style: TextStyle(color: Color(0xFF00FF88)),
+                              ),
+                            ),
+                          );
+                        }
+                      } else {
+                        final tempDir = await getTemporaryDirectory();
+                        final file = await File('${tempDir.path}/$filename').create();
+                        await file.writeAsBytes(pngBytes);
+                        if (!mounted) return;
+                        await SharePlus.instance.share(
+                          ShareParams(
+                            text: 'Mehd AI — Certificate of Intelligence. Operating under Den Analysis™ execution standards with HardRiskKernel enforcement.',
+                            files: [XFile(file.path)],
+                            sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text('Export failed: $e'),
+                          backgroundColor: Colors.red,
+                        ));
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isDownloading = false);
+                    }
                   },
-                  icon: const Icon(Icons.download_rounded, color: MehdAiTheme.gold, size: 16),
-                  label: Text('DOWNLOAD CERTIFICATE', style: MehdAiTheme.terminalStyle.copyWith(
-                    color: MehdAiTheme.gold, fontWeight: FontWeight.bold, fontSize: 12,
-                  )),
+                  icon: _isDownloading
+                      ? const SizedBox(height: 14, width: 14, child: CircularProgressIndicator(strokeWidth: 2, color: MehdAiTheme.gold))
+                      : const Icon(Icons.ios_share, color: MehdAiTheme.gold, size: 16),
+                  label: Text(
+                    _isDownloading ? 'EXPORTING...' : 'DOWNLOAD CERTIFICATE',
+                    style: MehdAiTheme.terminalStyle.copyWith(
+                      color: MehdAiTheme.gold, fontWeight: FontWeight.bold, fontSize: 12,
+                    )
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: BorderSide(color: MehdAiTheme.gold.withOpacity(0.3)),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -205,6 +284,7 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
               ),
             ],
           ),
+        ),
         ),
       ),
     );

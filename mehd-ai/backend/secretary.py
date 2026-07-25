@@ -63,15 +63,36 @@ class Secretary:
         # JPY pairs: pip at second decimal place
         if "JPY" in symbol:
             return 0.01
-        # Gold/Silver: pip = 0.01 (FIX C4: was missing, causing 100x pip inflation for XAU)
+        # Gold/Silver: pip = 0.01
         elif "XAU" in symbol or "XAG" in symbol:
             return 0.01
-        # Crypto and Indices: 1 pip = 1 price unit/point
-        elif "BTC" in symbol or "ETH" in symbol or "NAS" in symbol or "US30" in symbol:
+        # Crypto: 1 pip = 1 price unit
+        elif "BTC" in symbol or "ETH" in symbol:
+            return 1.0
+        # Indices: 1 pip = 1 index point
+        elif "NAS" in symbol or "US30" in symbol or "SPX" in symbol:
             return 1.0
         # Standard forex pairs: pip at fourth decimal place
         else:
             return 0.0001
+
+    def _get_blackswan_pip_threshold(self, symbol: str) -> float:
+        """Returns the spike pip threshold that qualifies as a Black Swan for this symbol.
+        Different assets have very different normal ranges of movement."""
+        if "BTC" in symbol:
+            return 500.0   # BTC: 500-point move in 60s is extreme
+        elif "ETH" in symbol:
+            return 150.0   # ETH: 150-point move in 60s is extreme
+        elif "NAS" in symbol or "SPX" in symbol:
+            return 100.0   # Nasdaq/S&P: 100-point move in 60s is extreme
+        elif "US30" in symbol:
+            return 200.0   # Dow Jones: 200-point move in 60s is extreme
+        elif "XAU" in symbol:
+            return 200.0   # Gold: 200-pip ($2.00) move in 60s is extreme
+        elif "JPY" in symbol:
+            return 50.0    # JPY: 50-pip move in 60s is extreme (same as forex)
+        else:
+            return 50.0    # Standard forex: 50-pip move in 60s is a Black Swan
 
     def _determine_session(self) -> str:
         """Determines the current major active trading session."""
@@ -141,22 +162,30 @@ class Secretary:
             else:
                 news_context = f"Next major event in {news_minutes} minutes."
 
-        # 5. Determine Volatility Level
+        # 5. Volatility Spike Detector (Black Swan Protection — per-asset threshold)
+        blackswan_threshold = self._get_blackswan_pip_threshold(symbol)
+        is_50pip_spike = pip_movement >= blackswan_threshold
+        
+        # Determine Volatility Level
         volatility_level = "LOW"
-        if spread_widened or pip_movement > (self.min_pip_movement * 2):
-            volatility_level = "HIGH"
+        if is_50pip_spike or spread_widened or pip_movement > (self.min_pip_movement * 2):
+            volatility_level = "CRITICAL" if is_50pip_spike else "HIGH"
         elif pip_movement >= self.min_pip_movement or is_news_imminent:
             volatility_level = "MEDIUM"
 
         # 6. DECISION LOGIC
         # Wake agents if:
-        # A) Price moved significantly (> min pip threshold)
-        # B) Spread blew out (volatility event)
-        # C) High-impact news is happening/just happened
+        # A) 50-pip Black Swan volatility spike
+        # B) Price moved significantly (> min pip threshold)
+        # C) Spread blew out (volatility event)
+        # D) High-impact news is happening/just happened
         should_wake = False
         reason = "Market flat. Noise filter engaged."
         
-        if pip_movement >= self.min_pip_movement:
+        if is_50pip_spike:
+            should_wake = True
+            reason = f"🚨 BLACK SWAN SPIKE DETECTED: {pip_movement:.1f} pips in current cycle!"
+        elif pip_movement >= self.min_pip_movement:
             should_wake = True
             reason = f"Significant movement: {pip_movement:.1f} pips."
         elif spread_widened:
@@ -183,6 +212,13 @@ class Secretary:
             regime=regime
         )
 
+        # 8. Ping the Hardened Kill Switch heartbeat so it knows the news filter is alive
+        try:
+            from hardened_kill_switch import hardened_kill_switch
+            hardened_kill_switch.record_news_heartbeat()
+        except Exception:
+            pass  # Non-fatal — kill switch is still in boot grace period
+
         return should_wake, reason, briefing
 
     def _generate_briefing(
@@ -208,6 +244,25 @@ class Secretary:
             f"Macro Regime:      {regime}\n"
             f"Should we trade?"
         )
+    def evaluate_incoming_news_packet(self, news_packet: dict) -> Tuple[bool, str, list[str]]:
+        """
+        Evaluates incoming financial news wire API packets using computer metadata tags.
+        Does NOT rely on understanding English or guessing words.
+        
+        Returns:
+            Tuple[should_trigger (bool), category (str), affected_symbols (list[str])]
+        """
+        impact = str(news_packet.get("impact_level", news_packet.get("impact", ""))).upper()
+        category = str(news_packet.get("category_code", news_packet.get("category", "MACRO_EVENT"))).upper()
+        affected_symbols = news_packet.get("affected_symbols", [])
+
+        # Trigger 11-Agent Swarm if news wire marked payload as HIGH or CRITICAL
+        if impact in ["HIGH", "CRITICAL", "3"]:
+            logger.info("Secretary News Wire Tag Matched: Impact=%s, Category=%s", impact, category)
+            return True, category, affected_symbols
+
+        return False, "LOW_IMPACT_NEWS", []
+
 
 # Singleton instance
 secretary = Secretary()

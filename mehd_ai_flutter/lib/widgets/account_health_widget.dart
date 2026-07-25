@@ -115,7 +115,7 @@ class AccountHealthWidget extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Center(
                 child: Text(
-                  'No trades executed yet.\nAwaiting kernel instructions.',
+                  '24/5 AUTONOMOUS RISK KERNEL ACTIVE\nNO RECENT TRADES EXECUTED',
                   textAlign: TextAlign.center,
                   style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.textSecondary),
                 ),

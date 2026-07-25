@@ -42,7 +42,7 @@ class DenSidebar extends StatelessWidget {
         color: const Color(0xFFFF9D00)),
       _SideItem(
         icon: Icons.psychology,
-        label: 'Pulse',
+        label: 'Neuro Pulse',
         color: const Color(0xFF00FF88)),
       _SideItem(
         icon: Icons.visibility,
@@ -72,6 +72,10 @@ class DenSidebar extends StatelessWidget {
         icon: Icons.settings,
         label: 'Settings',
         color: const Color(0xFF888888)),
+      _SideItem(
+        icon: Icons.rocket_launch,
+        label: 'Journey',
+        color: const Color(0xFF9E00FF)),
     ];
 
     return Container(

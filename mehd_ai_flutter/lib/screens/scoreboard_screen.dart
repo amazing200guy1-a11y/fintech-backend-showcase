@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/widgets/techno_card.dart';
 import 'package:mehd_ai_flutter/widgets/rolling_ticker.dart';
 import 'package:mehd_ai_flutter/screens/war_room_screen.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
+import 'package:mehd_ai_flutter/controllers/market_data_controller.dart';
 
 // ── Default seed data shown instantly while Firestore loads (or if offline) ──
 const Map<String, dynamic> _kSeedData = {
@@ -26,31 +29,79 @@ const Map<String, dynamic> _kSeedData = {
   ],
 };
 
-class ScoreboardScreen extends StatelessWidget {
+class ScoreboardScreen extends StatefulWidget {
   const ScoreboardScreen({super.key});
 
   @override
+  State<ScoreboardScreen> createState() => _ScoreboardScreenState();
+}
+
+class _ScoreboardScreenState extends State<ScoreboardScreen> {
+  // Cache latest live data so AppBar share button can read real values
+  Map<String, dynamic> _liveData = Map<String, dynamic>.from(_kSeedData);
+
+  @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsService>();
+    final isPaper = settings.paperMode;
+    final activeBroker = settings.hasBrokerConnected ? settings.connectedBrokerId.toUpperCase() : null;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'TRUTH ENGINE',
-              style: GoogleFonts.orbitron(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                letterSpacing: 2.0,
-              ),
+            Row(
+              children: [
+                Text(
+                  'TRUTH ENGINE',
+                  style: GoogleFonts.orbitron(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 2.0,
+                  ),
+                ),
+                if (isPaper) ...[
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF58A6FF).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFF58A6FF).withOpacity(0.4)),
+                    ),
+                    child: const Text('PAPER', style: TextStyle(color: Color(0xFF58A6FF), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                  ),
+                ],
+                if (activeBroker != null) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00FF88).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFF00FF88).withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.shield, color: Color(0xFF00FF88), size: 10),
+                        const SizedBox(width: 4),
+                        Text(activeBroker, style: const TextStyle(color: Color(0xFF00FF88), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
             Text(
-              'Our memory of reality. Every prediction. Every outcome. Absolute truth.',
-              style: GoogleFonts.inter(fontSize: 12, color: Colors.white54),
+              'Verified historical performance & AI consensus audit',
+              style: GoogleFonts.inter(fontSize: 11, color: Colors.white54),
             ),
           ],
         ),
@@ -59,10 +110,13 @@ class ScoreboardScreen extends StatelessWidget {
             icon: const Icon(Icons.share_rounded, color: Colors.white54),
             tooltip: 'Share Performance',
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('📊 MEHD AI Truth Engine: 71.2% Win Rate | \$1.25M Capital Protected | 4,381 Bad Trades Blocked. mehdai.com'),
-                backgroundColor: Color(0xFF1E293B),
-                duration: Duration(seconds: 4),
+              final wr = _liveData['win_rate_percentage'] ?? 71.2;
+              final cap = _formatMoney(_liveData['capital_protected_usd'] ?? 1248135);
+              final blocked = _liveData['bad_trades_blocked'] ?? 4381;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('📊 MEHD AI Scoreboard: $wr% Win Rate | \$$cap Capital Protected | $blocked Bad Trades Blocked'),
+                backgroundColor: const Color(0xFF1E293B),
+                duration: const Duration(seconds: 4),
               ));
             },
           ),
@@ -75,12 +129,18 @@ class ScoreboardScreen extends StatelessWidget {
             .doc('scoreboard')
             .snapshots(),
         builder: (context, snapshot) {
-          // Use live data if available, otherwise fall back to seed data
-          Map<String, dynamic> data = _kSeedData;
+          // Merge live Firestore on top of seed — never lose seed sub-fields
+          Map<String, dynamic> data = Map<String, dynamic>.from(_kSeedData);
           if (snapshot.hasData && snapshot.data!.exists) {
             final live = snapshot.data!.data() as Map<String, dynamic>?;
             if (live != null && live.isNotEmpty) {
-              data = live;
+              data = {..._kSeedData, ...live};
+              // Cache for share button access outside StreamBuilder
+              if (data != _liveData) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _liveData = data);
+                });
+              }
             }
           }
           return _buildDashboard(context, data);
@@ -429,6 +489,7 @@ class ScoreboardScreen extends StatelessWidget {
             final pf = (a['profit_factor'] as num).toDouble();
             final symbol = a['symbol'] as String;
             final isGood = wr >= 70;
+
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
@@ -436,8 +497,33 @@ class ScoreboardScreen extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: GestureDetector(
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Opening $symbol in Markets tab...'), backgroundColor: const Color(0xFF1E293B), duration: const Duration(seconds: 2))),
+                      onTap: () {
+                        // Wire tap to global MarketDataController if active
+                        try {
+                          final marketCtrl = context.read<MarketDataController>();
+                          // Format symbol e.g. EURUSD -> EUR/USD
+                          String formattedSymbol = symbol;
+                          if (symbol.length == 6 && !symbol.contains('/')) {
+                            formattedSymbol = '${symbol.substring(0, 3)}/${symbol.substring(3)}';
+                          }
+                          marketCtrl.selectSymbol(formattedSymbol, onStatusMsg: (_) {});
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('⚡ Active symbol switched to $formattedSymbol across platform.'),
+                              backgroundColor: const Color(0xFF00FF88).withOpacity(0.9),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        } catch (_) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Selected symbol: $symbol'),
+                              backgroundColor: const Color(0xFF1E293B),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
                       child: Row(children: [
                         Text(symbol, style: GoogleFonts.jetBrainsMono(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600)),
                         const SizedBox(width: 6),

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/models/consensus_result.dart';
 import 'package:mehd_ai_flutter/core/den_identity.dart';
 import 'package:mehd_ai_flutter/core/performance_tracker.dart';
 import 'package:mehd_ai_flutter/core/cache_service.dart';
 import 'package:mehd_ai_flutter/core/api_service.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'dart:math' as math;
 import 'dart:async';
 
@@ -42,9 +44,14 @@ class _WarRoomScreenState extends State<WarRoomScreen> with TickerProviderStateM
   }
 
   Future<void> _fetchHealth() async {
-    final data = await _apiService.getSystemHealth();
-    if (mounted && data.isNotEmpty) {
-      setState(() => _healthData = data);
+    try {
+      final data = await _apiService.getSystemHealth();
+      if (mounted && data.isNotEmpty) {
+        setState(() => _healthData = data);
+      }
+    } catch (e) {
+      // Non-fatal — timer will retry in 5 seconds
+      debugPrint('WarRoom: Health fetch error (non-fatal): $e');
     }
   }
 
@@ -65,7 +72,7 @@ class _WarRoomScreenState extends State<WarRoomScreen> with TickerProviderStateM
         "THE RESEARCH: Gathering street intelligence and sentiment.\n"
         "THE STRATEGY: Formulating imperial strategy and risk protocols.\n"
         "OLYMPUS: Calculating quantitative probabilities.\n\n"
-        "Awaiting The Don's Synthesis...";
+        "11-AGENT SWARM ACTIVE — 24/5 LIVE MONITORING...";
     
     int charIndex = 0;
     _typewriterTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
@@ -89,15 +96,25 @@ class _WarRoomScreenState extends State<WarRoomScreen> with TickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsService>();
+    final activeBroker = settings.hasBrokerConnected ? settings.connectedBrokerId.toUpperCase() : null;
+
     return Scaffold(
       backgroundColor: Colors.black, // Dark cinematic
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.shield, color: MehdAiTheme.red),
             const SizedBox(width: 12),
-            Text('INSTITUTIONAL WAR ROOM', style: MehdAiTheme.headingStyle.copyWith(color: MehdAiTheme.red, letterSpacing: 4)),
+            Flexible(
+              child: Text(
+                'INSTITUTIONAL WAR ROOM',
+                style: MehdAiTheme.headingStyle.copyWith(color: MehdAiTheme.red, letterSpacing: 4),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         backgroundColor: Colors.black,
@@ -108,10 +125,33 @@ class _WarRoomScreenState extends State<WarRoomScreen> with TickerProviderStateM
           child: Container(
             color: const Color(0xFF0D1117),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text(
-                '${_perf.warRoomSummary} | Cache: ${_cache.hitRate.toStringAsFixed(0)}% hit',
-              style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.green, fontSize: 11),
-              textAlign: TextAlign.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    '${_perf.warRoomSummary} | Cache: ${_cache.hitRate.toStringAsFixed(0)}% hit',
+                    style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.green, fontSize: 11),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (activeBroker != null) ...[
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00FF88).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(color: const Color(0xFF00FF88).withOpacity(0.4)),
+                    ),
+                    child: Text(
+                      'BROKER: $activeBroker',
+                      style: const TextStyle(color: Color(0xFF00FF88), fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -239,9 +279,25 @@ class _WarRoomScreenState extends State<WarRoomScreen> with TickerProviderStateM
   }
 
   Widget _buildNode(double dx, double dy, String rawModelName, Color baseColor) {
+    final settings = context.read<SettingsService>();
+    final convictionThreshold = settings.convictionThreshold; // e.g. 75.0
+    final showNames = settings.showAgentNames;
+
     final identity = DenIdentity.getIdentity(rawModelName);
     final hasVoted = widget.consensus?.votes.any((v) => v.modelName.toLowerCase() == rawModelName.toLowerCase()) ?? false;
-    final color = hasVoted ? baseColor : baseColor.withOpacity(0.3);
+
+    // Check if this agent's vote meets the conviction threshold
+    final agentVote = widget.consensus?.votes.firstWhere(
+      (v) => v.modelName.toLowerCase() == rawModelName.toLowerCase(),
+      orElse: () => AIVote(modelName: rawModelName, snapshotId: '', direction: 'HOLD', confidence: 0.0, reasoning: ''),
+    );
+    final agentConfidence = (agentVote?.confidence ?? 0).toDouble();
+    final meetsThreshold = !hasVoted || agentConfidence >= convictionThreshold;
+
+    // Dim agents that voted but didn't meet the threshold
+    final color = hasVoted
+        ? (meetsThreshold ? baseColor : baseColor.withOpacity(0.25))
+        : baseColor.withOpacity(0.3);
     final size = hasVoted ? 16.0 : 12.0;
 
     return Transform.translate(
@@ -258,16 +314,25 @@ class _WarRoomScreenState extends State<WarRoomScreen> with TickerProviderStateM
                 child: Container(
                   width: size, height: size,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle, 
+                    shape: BoxShape.circle,
                     color: color,
-                    boxShadow: hasVoted ? [BoxShadow(color: color.withOpacity(0.8), blurRadius: 15 * scale, spreadRadius: 2 * scale)] : [],
+                    boxShadow: hasVoted && meetsThreshold ? [BoxShadow(color: color.withOpacity(0.8), blurRadius: 15 * scale, spreadRadius: 2 * scale)] : [],
                   ),
                 ),
               );
             },
           ),
           const SizedBox(height: 4),
-          Text(identity.displayName, style: MehdAiTheme.labelStyle.copyWith(color: color, fontSize: 10, fontWeight: hasVoted ? FontWeight.bold : FontWeight.normal)),
+          // Only show agent names if the setting is ON
+          if (showNames)
+            Text(
+              identity.displayName,
+              style: MehdAiTheme.labelStyle.copyWith(
+                color: color,
+                fontSize: 10,
+                fontWeight: hasVoted ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
         ],
       ),
     );
@@ -315,10 +380,33 @@ class _WarRoomScreenState extends State<WarRoomScreen> with TickerProviderStateM
           ),
         ),
         const SizedBox(height: 20),
-        if (widget.consensus != null)
-           Text('CONSENSUS: ${widget.consensus!.consensusPercentage}%', style: MehdAiTheme.headingStyle.copyWith(fontSize: 24, color: baseColor))
-        else
-           Text('AWAITING DATA', style: MehdAiTheme.headingStyle.copyWith(color: MehdAiTheme.textSecondary)),
+        if (widget.consensus != null) ...[
+          Text('CONSENSUS: ${widget.consensus!.consensusPercentage}%', style: MehdAiTheme.headingStyle.copyWith(fontSize: 24, color: baseColor)),
+          Builder(builder: (ctx) {
+            final threshold = ctx.watch<SettingsService>().convictionThreshold;
+            final pct = widget.consensus!.consensusPercentage.toDouble();
+            final passes = pct >= threshold;
+            return Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(passes ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                    color: passes ? const Color(0xFF00FF88) : const Color(0xFFFF3B3B), size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    passes ? 'ABOVE YOUR ${threshold.toInt()}% THRESHOLD' : 'BELOW YOUR ${threshold.toInt()}% THRESHOLD',
+                    style: MehdAiTheme.labelStyle.copyWith(
+                      color: passes ? const Color(0xFF00FF88) : const Color(0xFFFF3B3B),
+                      fontSize: 10, fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ] else
+           Text('SIGNAL PIPELINE ACTIVE — CONNECTING...', style: MehdAiTheme.headingStyle.copyWith(color: MehdAiTheme.textSecondary)),
       ],
     );
   }
@@ -357,7 +445,11 @@ class _WarRoomScreenState extends State<WarRoomScreen> with TickerProviderStateM
                     const SizedBox(height: 8),
                     if (_healthData!['model_response_times'] != null)
                       ...(_healthData!['model_response_times'] as Map<String, dynamic>).entries.map(
-                        (e) => _buildMetricRow(" > ${DenIdentity.getIdentity(e.key).displayName}", e.value.toString())
+                        (e) {
+                          final showNames = context.read<SettingsService>().showAgentNames;
+                          final displayName = showNames ? DenIdentity.getIdentity(e.key).displayName : e.key.toUpperCase();
+                          return _buildMetricRow(" > $displayName", e.value?.toString() ?? 'N/A');
+                        }
                       ),
 
                   ]

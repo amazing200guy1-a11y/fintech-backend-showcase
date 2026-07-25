@@ -1,11 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
+import 'package:mehd_ai_flutter/core/constants.dart';
 import 'package:mehd_ai_flutter/controllers/trading_controller.dart';
 import 'package:mehd_ai_flutter/screens/broker_screen.dart';
-import 'package:mehd_ai_flutter/services/language_service.dart';
 import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'package:mehd_ai_flutter/screens/help/about_screen.dart';
 import 'package:mehd_ai_flutter/screens/den/tutorial_blueprint_screen.dart';
@@ -14,6 +15,9 @@ import 'package:mehd_ai_flutter/screens/compliance_screen.dart';
 import 'package:mehd_ai_flutter/screens/security_screen.dart';
 import 'package:mehd_ai_flutter/services/payment_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' as io;
+
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -67,6 +71,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text('SETTINGS', style: MehdAiTheme.headingStyle.copyWith(letterSpacing: 2)),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
@@ -82,17 +87,16 @@ class SettingsScreen extends StatelessWidget {
               stream: FirebaseAuth.instance.authStateChanges(),
               builder: (ctx, snapshot) {
                 final user = snapshot.data;
-                final name = user?.displayName ?? 'Trader';
+                final firebaseName = user?.displayName;
+                final name = (firebaseName != null && firebaseName.isNotEmpty) 
+                    ? firebaseName 
+                    : (settings.profileName.isNotEmpty ? settings.profileName : 'Trader');
                 final email = user?.email ?? 'Not signed in';
                 final initials = name.isNotEmpty ? name[0].toUpperCase() : 'T';
                 
                 return Column(children: [
                   GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Profile editing coming soon')
-                      ));
-                    },
+                    onTap: () => _showEditProfileDialog(context, name, settings),
                     child: Container(
                       width: 64, height: 64,
                       decoration: BoxDecoration(
@@ -152,7 +156,7 @@ class SettingsScreen extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         settings.paperMode
-                          ? 'Paper Trading — \$10,000 demo'
+                          ? 'Paper Trading — \$${settings.accountBalance.toStringAsFixed(0)} demo'
                           : 'Live Trading — Real money',
                         style: TextStyle(
                           color: settings.paperMode
@@ -179,54 +183,99 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.pie_chart_outline, color: Color(0xFF888888)),
-              title: const Text('Default Lot Size', style: TextStyle(color: Color(0xFFDDDDDD), fontSize: 13)),
-              trailing: const Text('1.00', style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Default Lot Size', style: TextStyle(color: Color(0xFFDDDDDD), fontSize: 13)),
+                      Text('${settings.defaultLotSize.toStringAsFixed(2)} Lots', style: const TextStyle(color: Color(0xFF58A6FF), fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('Set default trade size. Enable growth by adjusting target exposure.', style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
+                  SliderTheme(
+                    data: SliderThemeData(
+                      activeTrackColor: const Color(0xFF58A6FF),
+                      inactiveTrackColor: const Color(0xFF111111),
+                      thumbColor: const Color(0xFF58A6FF),
+                      overlayColor: const Color(0xFF58A6FF).withOpacity(0.2),
+                      trackHeight: 4.0,
+                    ),
+                    child: Slider(
+                      // Clamp prevents crash if stored value is outside slider bounds
+                      value: settings.defaultLotSize.clamp(0.01, 10.0),
+                      min: 0.01,
+                      max: 10.0,
+                      divisions: 999, // 0.01 increments
+                      onChanged: (v) => settings.setDefaultLotSize(v, save: false),
+                      onChangeEnd: (v) => settings.setDefaultLotSize(v, save: true),
+                    ),
+                  ),
+                ],
+              ),
             ),
-              SwitchListTile(
-                title: const Text('Auto Stop-Loss', style: TextStyle(color: Color(0xFFDDDDDD), fontSize: 13)),
-                subtitle: const Text('Den sets SL automatically', style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
-                value: settings.autoStopLoss,
-                secondary: const Icon(Icons.shield_outlined, color: Color(0xFF888888)),
-                activeColor: const Color(0xFF58A6FF),
-                inactiveThumbColor: const Color(0xFF444444),
-                inactiveTrackColor: const Color(0xFF111111),
-                onChanged: settings.setAutoStopLoss,
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Minimum Conviction Threshold', style: TextStyle(color: Color(0xFFDDDDDD), fontSize: 13)),
-                        Text('${settings.convictionThreshold.toInt()}%', style: const TextStyle(color: Color(0xFF58A6FF), fontSize: 13, fontWeight: FontWeight.bold)),
-                      ],
+            SwitchListTile(
+              title: const Text('Auto Stop-Loss', style: TextStyle(color: Color(0xFFDDDDDD), fontSize: 13)),
+              subtitle: const Text('Den sets SL automatically', style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
+              value: settings.autoStopLoss,
+              secondary: const Icon(Icons.shield_outlined, color: Color(0xFF888888)),
+              activeColor: const Color(0xFF58A6FF),
+              inactiveThumbColor: const Color(0xFF444444),
+              inactiveTrackColor: const Color(0xFF111111),
+              onChanged: settings.setAutoStopLoss,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Minimum Conviction Threshold', style: TextStyle(color: Color(0xFFDDDDDD), fontSize: 13)),
+                      Text('${settings.convictionThreshold.toInt()}%', style: const TextStyle(color: Color(0xFF58A6FF), fontSize: 13, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    settings.convictionThreshold > 90
+                        ? '🎯 Ultra-High Precision — Trades will be rare & highly selective'
+                        : settings.convictionThreshold < 65
+                            ? '⚡ High Frequency — More trade triggers, higher volatility exposure'
+                            : 'Agent consensus required to broadcast trade',
+                    style: TextStyle(
+                      color: settings.convictionThreshold > 90
+                          ? const Color(0xFF58A6FF)
+                          : settings.convictionThreshold < 65
+                              ? const Color(0xFFD29922)
+                              : const Color(0xFF666666),
+                      fontSize: 11,
                     ),
-                    const SizedBox(height: 4),
-                    const Text('Agent consensus required to broadcast trade', style: TextStyle(color: Color(0xFF666666), fontSize: 11)),
-                    SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: const Color(0xFF58A6FF),
-                        inactiveTrackColor: const Color(0xFF111111),
-                        thumbColor: const Color(0xFF58A6FF),
-                        overlayColor: const Color(0xFF58A6FF).withOpacity(0.2),
-                        trackHeight: 4.0,
-                      ),
-                      child: Slider(
-                        value: settings.convictionThreshold,
-                        min: 50,
-                        max: 100,
-                        divisions: 50,
-                        onChanged: settings.setConvictionThreshold,
-                      ),
+                  ),
+                  SliderTheme(
+                    data: SliderThemeData(
+                      activeTrackColor: const Color(0xFF58A6FF),
+                      inactiveTrackColor: const Color(0xFF111111),
+                      thumbColor: const Color(0xFF58A6FF),
+                      overlayColor: const Color(0xFF58A6FF).withOpacity(0.2),
+                      trackHeight: 4.0,
                     ),
-                  ],
-                ),
+                    child: Slider(
+                      value: settings.convictionThreshold,
+                      min: 50,
+                      max: 100,
+                      divisions: 50,
+                      onChanged: (v) => settings.setConvictionThreshold(v, save: false),
+                      onChangeEnd: (v) => settings.setConvictionThreshold(v, save: true),
+                    ),
+                  ),
+                ],
               ),
+            ),
             
             const Divider(color: Color(0xFF111111), height: 32),
             
@@ -333,27 +382,60 @@ class SettingsScreen extends StatelessWidget {
                       const SizedBox(height: 12),
 
                       // Manage billing button
-                      _build3DSettingsCard(
-                        context,
-                        isObserver ? 'Upgrade Account' : 'Manage Billing',
-                        isObserver ? 'View plans on the Mehd AI website' : 'Update payment method or cancel',
-                        isObserver ? Icons.rocket_launch_rounded : Icons.credit_card_rounded,
-                        isObserver
-                          ? const [Color(0xFF0A2040), Color(0xFF051020)]
-                          : const [Color(0xFF1A2030), Color(0xFF0F1520)],
-                        isObserver ? MehdAiTheme.blue : tierColor,
-                        () async {
-                          final uri = Uri.parse(portalUrl);
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          } else {
-                            if (ctx.mounted) {
-                              ScaffoldMessenger.of(ctx).showSnackBar(
-                                const SnackBar(content: Text('Could not open billing page. Visit mehdai.com'))
-                              );
-                            }
-                          }
-                        },
+                      Builder(
+                        builder: (ctx) {
+                          final bool isMobileApp = !kIsWeb && (io.Platform.isIOS || io.Platform.isAndroid);
+                          return _build3DSettingsCard(
+                            context,
+                            isObserver ? 'Upgrade Account' : 'Manage Billing',
+                            isMobileApp
+                              ? 'Manage billing through your desktop browser'
+                              : (isObserver ? 'View plans on the Mehd AI website' : 'Update payment method or cancel'),
+                            isObserver ? Icons.rocket_launch_rounded : Icons.credit_card_rounded,
+                            isObserver
+                              ? const [Color(0xFF0A2040), Color(0xFF051020)]
+                              : const [Color(0xFF1A2030), Color(0xFF0F1520)],
+                            isObserver ? MehdAiTheme.blue : tierColor,
+                            () async {
+                              if (isMobileApp) {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: MehdAiTheme.surface(context),
+                                    title: Text(
+                                      isObserver ? 'Upgrade Subscription' : 'Manage Billing',
+                                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                    ),
+                                    content: Text(
+                                      isObserver
+                                          ? 'To upgrade to a premium tier, please sign in to the Mehd AI console on a desktop web browser. Mobile store guidelines do not permit direct external checkout links.'
+                                          : 'To update your payment method or manage your subscription billing, please access the console from a desktop web browser.',
+                                      style: const TextStyle(color: MehdAiTheme.textSecondary, fontSize: 13, height: 1.5),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('OK', style: TextStyle(color: MehdAiTheme.blue)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                return;
+                              }
+
+                              final uri = Uri.parse(portalUrl);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              } else {
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    const SnackBar(content: Text('Could not open billing page. Visit mehdai.com'))
+                                  );
+                                }
+                              }
+                            },
+                          );
+                        }
                       ),
                     ],
                   );
@@ -394,34 +476,8 @@ class SettingsScreen extends StatelessWidget {
             
             const Divider(color: Color(0xFF111111), height: 32),
             
-            // Language
-            _buildSectionTitle('LANGUAGE'),
-            ListTile(
-              leading: const Icon(Icons.language, color: Color(0xFF444444), size: 20),
-              title: const Text('Language', style: TextStyle(color: Color(0xFF888888))),
-              subtitle: Text(settings.language, style: const TextStyle(color: Color(0xFF444444), fontSize: 10)),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFF333333)),
-              onTap: () => _openLanguageSheet(context, settings),
-            ),
-
-            const Divider(color: Color(0xFF111111), height: 32),
-            
-            // Appearance
-            _buildSectionTitle('APPEARANCE'),
-            SwitchListTile(
-              title: const Text('Dark Mode', style: TextStyle(color: Color(0xFF888888))),
-              subtitle: Text(
-                settings.darkMode
-                  ? 'Pure black — easy on eyes'
-                  : 'Light theme active',
-                style: const TextStyle(color: Color(0xFF444444), fontSize: 10)),
-              value: settings.darkMode,
-              activeColor: const Color(0xFF58A6FF),
-              onChanged: (v) {
-                settings.setDarkMode(v);
-                context.read<ThemeProvider>().setDark(v);
-              },
-            ),
+            // Interface
+            _buildSectionTitle('INTERFACE PREFERENCES'),
             SwitchListTile(
               title: const Text('Show Agent Names', style: TextStyle(color: Color(0xFF888888), fontSize: 13)),
               subtitle: const Text('Shows DON, ORACLE etc. in terminal', style: TextStyle(color: Color(0xFF444444), fontSize: 10)),
@@ -579,62 +635,73 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _openLanguageSheet(BuildContext context, SettingsService settings) {
-    showModalBottomSheet(
+  void _showEditProfileDialog(BuildContext context, String currentName, SettingsService settings) {
+    final controller = TextEditingController(text: currentName);
+    showDialog(
       context: context,
-      backgroundColor: const Color(0xFF080808),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
-      builder: (_) {
-        final langs = [
-          {'name': 'English',   'flag': '🇬🇧', 'code': 'en'},
-          {'name': 'Arabic',    'flag': '🇸🇦', 'code': 'ar'},
-          {'name': 'French',    'flag': '🇫🇷', 'code': 'fr'},
-          {'name': 'Spanish',   'flag': '🇪🇸', 'code': 'es'},
-          {'name': 'Portuguese','flag': '🇧🇷', 'code': 'pt'},
-          {'name': 'Indonesian','flag': '🇮🇩', 'code': 'id'},
-          {'name': 'Mandarin',  'flag': '🇨🇳', 'code': 'zh'},
-          {'name': 'Russian',   'flag': '🇷🇺', 'code': 'ru'},
-        ];
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40, height: 4,
-              margin: const EdgeInsets.only(top: 10, bottom: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFF333333),
-                borderRadius: BorderRadius.circular(2))),
-            const Text('SELECT LANGUAGE',
-              style: TextStyle(
-                color: Color(0xFF58A6FF),
-                fontSize: 12,
-                letterSpacing: 2)),
-            const SizedBox(height: 12),
-            ...langs.map((lang) =>
-              ListTile(
-                leading: Text(lang['flag']!, style: const TextStyle(fontSize: 22)),
-                title: Text(lang['name']!,
-                  style: TextStyle(
-                    color: settings.language == lang['name'] ? const Color(0xFF58A6FF) : const Color(0xFF888888),
-                    fontSize: 13)),
-                trailing: settings.language == lang['name']
-                  ? const Icon(Icons.check, color: Color(0xFF58A6FF), size: 16)
-                  : null,
-                onTap: () {
-                  settings.setLanguage(lang['name']!);
-                  context.read<LanguageService>().setLocale(Locale(lang['code']!));
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Language set to ${lang['name']}'),
-                    backgroundColor: const Color(0xFF020810)));
-                },
-              )
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF020810),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF222222)),
+        ),
+        title: Text('EDIT PROFILE NAME',
+            style: GoogleFonts.orbitron(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 1.5)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            labelText: 'Display Name',
+            labelStyle: TextStyle(color: Colors.white54),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white24),
             ),
-            const SizedBox(height: 20),
-          ],
-        );
-      },
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFF58A6FF)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('CANCEL', style: TextStyle(color: Colors.white54)),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF58A6FF),
+            ),
+            child: const Text('SAVE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isNotEmpty) {
+                try {
+                  await settings.setProfileName(newName);
+                  await FirebaseAuth.instance.currentUser?.updateDisplayName(newName);
+                  await FirebaseAuth.instance.currentUser?.reload();
+                  if (context.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Display name updated to $newName'),
+                      backgroundColor: const Color(0xFF1E293B),
+                    ));
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ));
+                  }
+                }
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -728,7 +795,7 @@ class SettingsScreen extends StatelessWidget {
           'You are enabling LIVE trading.\n\n'
           'Real money. Real consequences.\n'
           'Your current risk is locked at ${settings.riskPerTrade.toStringAsFixed(1)}% per trade.\n'
-          'Kill-switch at 3% drawdown.',
+          'Kill-switch at ${AppConstants.killSwitchPercent.toStringAsFixed(0)}% drawdown.',
           style: const TextStyle(color: Color(0xFF666666), fontSize: 12, height: 1.7),
         ),
         actions: [
@@ -886,12 +953,16 @@ class _GlobalRiskSliderState extends State<_GlobalRiskSlider> {
               trackHeight: 4.0,
             ),
             child: Slider(
-              value: risk,
+              // Clamp prevents crash if stored value is outside slider bounds
+              value: risk.clamp(0.1, 10.0),
               min: 0.1,
               max: 10.0,
               divisions: 99,
               onChanged: (val) {
-                widget.settings.setRiskPerTrade(val);
+                widget.settings.setRiskPerTrade(val, save: false);
+              },
+              onChangeEnd: (val) {
+                widget.settings.setRiskPerTrade(val, save: true);
               },
             ),
           ),

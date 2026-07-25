@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/core/constants.dart';
 import 'package:mehd_ai_flutter/models/market_snapshot.dart';
@@ -152,50 +154,52 @@ class _SymbolSidebarState extends State<SymbolSidebar> {
                     padding: EdgeInsets.zero,
                     children: [
                       _buildSectionHeader('FOREX'),
-                      ...AppConstants.symbols.take(3).map((s) => _buildSymbolRow(s)),
+                      ...AppConstants.symbols.sublist(0, 5).map((s) => _buildSymbolRow(s)),
 
                       const SizedBox(height: 12),
                       _buildSectionHeader('COMMODITIES'),
-                      ...AppConstants.symbols.skip(3).take(1).map((s) => _buildSymbolRow(s)),
+                      ...AppConstants.symbols.sublist(5, 6).map((s) => _buildSymbolRow(s)),
 
                       const SizedBox(height: 12),
                       _buildSectionHeader('CRYPTO'),
-                      ...AppConstants.symbols.skip(4).take(2).map((s) => _buildSymbolRow(s)),
+                      ...AppConstants.symbols.sublist(6, 8).map((s) => _buildSymbolRow(s)),
 
                       const SizedBox(height: 12),
                       _buildSectionHeader('INDICES'),
-                      ...AppConstants.symbols.skip(6).map((s) => _buildSymbolRow(s)),
+                      ...AppConstants.symbols.sublist(8).map((s) => _buildSymbolRow(s)),
                     ],
                   ),
                 ),
 
-                // Risk Kernel Status at bottom
-                Container(
-                  padding: const EdgeInsets.all(16.0),
-                  decoration: const BoxDecoration(
-                    border: Border(top: BorderSide(color: MehdAiTheme.borderColor)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: MehdAiTheme.green,
-                          shape: BoxShape.circle,
+                // Risk Kernel Status at bottom — live from SettingsService
+                Consumer<SettingsService>(
+                  builder: (context, settings, _) => Container(
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: MehdAiTheme.borderColor)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: MehdAiTheme.green,
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('RISK KERNEL', style: MehdAiTheme.labelStyle.copyWith(fontSize: 10, color: MehdAiTheme.purple), overflow: TextOverflow.ellipsis),
-                            Text('1% max active', style: MehdAiTheme.labelStyle.copyWith(fontSize: 11, color: MehdAiTheme.textPrimary), overflow: TextOverflow.ellipsis),
-                          ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('RISK KERNEL', style: MehdAiTheme.labelStyle.copyWith(fontSize: 10, color: MehdAiTheme.purple), overflow: TextOverflow.ellipsis),
+                              Text('${settings.riskPerTrade.toStringAsFixed(1)}% per trade active', style: MehdAiTheme.labelStyle.copyWith(fontSize: 11, color: MehdAiTheme.textPrimary), overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],

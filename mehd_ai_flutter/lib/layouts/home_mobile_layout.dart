@@ -4,15 +4,9 @@ import 'package:mehd_ai_flutter/controllers/trading_controller.dart';
 import 'package:mehd_ai_flutter/controllers/market_data_controller.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/core/constants.dart';
-import 'package:mehd_ai_flutter/core/api_service.dart';
-import 'package:mehd_ai_flutter/models/account_health.dart';
-import 'package:mehd_ai_flutter/widgets/den_chart.dart';
 import 'package:mehd_ai_flutter/widgets/consensus_bar.dart';
 import 'package:mehd_ai_flutter/widgets/ai_terminal.dart';
-import 'package:mehd_ai_flutter/screens/settings_screen.dart';
-import 'package:mehd_ai_flutter/screens/war_room_community_screen.dart';
-import 'package:mehd_ai_flutter/screens/den/the_den_screen.dart';
-import 'package:mehd_ai_flutter/widgets/account_health_widget.dart';
+import 'package:mehd_ai_flutter/widgets/den_chart.dart';
 import 'package:mehd_ai_flutter/widgets/den_help_modal.dart';
 import 'package:mehd_ai_flutter/utils/titan_animations.dart';
 import 'package:mehd_ai_flutter/screens/den/strategy_room.dart';
@@ -22,6 +16,8 @@ import 'package:mehd_ai_flutter/screens/journey_screen.dart';
 import 'package:mehd_ai_flutter/screens/calculators_screen.dart';
 import 'package:mehd_ai_flutter/screens/data_moat_screen.dart';
 import 'package:mehd_ai_flutter/screens/war_room_screen.dart';
+import 'package:mehd_ai_flutter/screens/settings_screen.dart';
+import 'package:mehd_ai_flutter/screens/war_room_community_screen.dart';
 import 'package:mehd_ai_flutter/screens/den/sovereign_feed_screen.dart';
 import 'package:mehd_ai_flutter/screens/scoreboard_screen.dart';
 import 'package:mehd_ai_flutter/screens/autopilot_command_center.dart';
@@ -40,23 +36,12 @@ class HomeMobileLayout extends StatefulWidget {
 }
 
 class _HomeMobileLayoutState extends State<HomeMobileLayout> {
-  int _mobileTab = 0;
+  // This widget renders the TERMINAL tab content only.
+  // Tab switching (THE DEN, PORTFOLIO, HISTORY, HUB) is handled
+  // by the outer AutopilotCommandCenter BottomNavigationBar.
   final GlobalKey<DenChartState> _chartKey = GlobalKey<DenChartState>();
-  AccountHealth? _accountHealth;
-  bool _healthLoading = false;
 
-  void _fetchAccountHealth() async {
-    if (_healthLoading) return;
-    setState(() => _healthLoading = true);
-    try {
-      final health = await ApiService().getAccountHealth();
-      if (mounted) setState(() => _accountHealth = health);
-    } catch (e) {
-      debugPrint('Failed to fetch account health: $e');
-    } finally {
-      if (mounted) setState(() => _healthLoading = false);
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -67,63 +52,76 @@ class _HomeMobileLayoutState extends State<HomeMobileLayout> {
       children: [
         Column(
           children: [
-            // Symbol Bar with Help Icon
+            // ── Symbol Chip Bar ──────────────────────────────────────
+            // Tightened to 48px (was 60px). Chips use ellipsis so full
+            // symbol names like XAU/USD are never truncated.
             Container(
-              height: 60,
+              height: 48,
               color: MehdAiTheme.surface(context),
               child: Row(
                 children: [
                   Expanded(
                     child: ListView(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                       children: AppConstants.symbols.map((s) => Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 3.0),
                         child: ChoiceChip(
-                          label: Text(s, style: MehdAiTheme.labelStyle),
+                          label: Text(
+                            s,
+                            style: MehdAiTheme.labelStyle.copyWith(fontSize: 11),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           selected: s == market.activeSymbol,
                           onSelected: (val) {
                             if (val) market.selectSymbol(s, onStatusMsg: (_) {});
                           },
                           backgroundColor: MehdAiTheme.background(context),
                           selectedColor: MehdAiTheme.blue.withOpacity(0.2),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
                         ),
                       )).toList(),
                     ),
                   ),
-                  // Help ? Icon
+                  // Help icon
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: GestureDetector(
                       onTap: () => showDenHelpModal(context),
                       child: Container(
-                        width: 36,
-                        height: 36,
+                        width: 32,
+                        height: 32,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: MehdAiTheme.blue.withOpacity(0.1),
                           border: Border.all(color: MehdAiTheme.blue.withOpacity(0.3)),
                         ),
-                        child: const Icon(Icons.help_outline, color: MehdAiTheme.blue, size: 18),
+                        child: const Icon(Icons.help_outline, color: MehdAiTheme.blue, size: 16),
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            
-            // Tab Body
+
+            // ── Terminal Tab Body ─────────────────────────────────────
+            // Direct render — no inner tab switching needed here.
+            // Navigation to THE DEN, PORTFOLIO etc. is via the outer nav.
             Expanded(
               child: AnimatedSwitcher(
                 duration: TitanAnimations.medium,
                 switchInCurve: TitanAnimations.emphasized,
                 switchOutCurve: TitanAnimations.smooth,
-                child: _buildBody(market, trading),
+                child: _buildTerminalTab(market),
               ),
             ),
             
-            // Consensus Action Bar (Terminal only)
-            if (_mobileTab == 0 && market.activeSymbol != null) 
+            // ── Consensus Action Bar ──────────────────────────────────
+            // Always show when a symbol is active — no tab gating needed
+            // since this widget IS the terminal tab.
+            if (market.activeSymbol != null)
               ConsensusBar(
                 consensus: market.consensus,
                 buttonState: trading.btnState,
@@ -138,108 +136,55 @@ class _HomeMobileLayoutState extends State<HomeMobileLayout> {
                 ),
                 currentSpread: market.latestSnapshot?.spread ?? 0.0,
               ),
-            
-            // Navigation
-            BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: MehdAiTheme.surface(context),
-              selectedItemColor: MehdAiTheme.blue,
-              unselectedItemColor: MehdAiTheme.textSecondary,
-              currentIndex: _mobileTab,
-              onTap: (i) {
-                if (i == 4) {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-                } else {
-                  setState(() => _mobileTab = i);
-                }
-              },
-              items: const [
-                BottomNavigationBarItem(icon: Icon(Icons.terminal), label: 'AI TERMINAL'),
-                BottomNavigationBarItem(icon: Icon(Icons.account_tree), label: 'THE DEN'),
-                BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'ACCOUNT'),
-                BottomNavigationBarItem(icon: Icon(Icons.scoreboard), label: 'SCOREBOARD'),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings_outlined),
-                  activeIcon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
-            )
           ],
         ),
         
-        // Floating Action Button (Tiger Circle)
-        if (_mobileTab == 0)
-          Positioned(
-            bottom: 60,
-            right: 12,
-            child: Tooltip(
-              message: 'The Den Action Menu',
-              child: GestureDetector(
-                onTap: () => _showDenActionMenu(context),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: MehdAiTheme.background(context),
-                    border: Border.all(
-                      color: const Color(0xFF58A6FF).withOpacity(0.4),
-                      width: 1.5,
+        // Floating Action Button (Tiger Circle) — always visible on terminal screen
+        Positioned(
+          bottom: 60,
+          right: 12,
+          child: Tooltip(
+            message: 'The Den Action Menu',
+            child: GestureDetector(
+              onTap: () => _showDenActionMenu(context),
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: MehdAiTheme.background(context),
+                  border: Border.all(
+                    color: const Color(0xFF58A6FF).withOpacity(0.4),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF58A6FF).withOpacity(0.15),
+                      blurRadius: 12,
+                      spreadRadius: 2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF58A6FF).withOpacity(0.15),
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset('assets/images/mehd_logo.png', width: 48, height: 48),
-                  ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: Image.asset('assets/images/mehd_logo.png', width: 48, height: 48),
                 ),
               ),
             ),
           ),
+        ),
       ],
     );
   }
 
-  Widget _buildBody(MarketDataController market, TradingController trading) {
-    if (_mobileTab == 0) return _buildTerminalTab(market);
-    if (_mobileTab == 1) {
-      return TheDenScreen(
-        key: const ValueKey('tab1'),
-        consensusResult: market.consensus,
-        isAnalyzing: market.isAnalyzing,
-        activeSymbol: market.activeSymbol,
-        onClose: () => setState(() => _mobileTab = 0),
-      );
-    }
-    if (_mobileTab == 3) {
-      return const ScoreboardScreen();
-    }
-    // Fetch health data when this tab is first shown
-    if (_accountHealth == null && !_healthLoading) {
-      _fetchAccountHealth();
-    }
-    if (_healthLoading && _accountHealth == null) {
-      return const Center(child: CircularProgressIndicator(color: MehdAiTheme.blue));
-    }
-    return AccountHealthWidget(
-      key: const ValueKey('tab2'),
-      health: _accountHealth,
-      recentTrades: trading.recentTrades,
-    );
-  }
 
   Widget _buildTerminalTab(MarketDataController market) {
     return Column(
-      key: const ValueKey('tab0'),
+      key: const ValueKey('terminal'),
       children: [
         SizedBox(
-          height: MediaQuery.of(context).size.height * 0.4,
+          // Increased from 0.40 → 0.45: the ~56px freed by removing the inner
+          // nav bar is redistributed here so the chart breathes.
+          height: MediaQuery.of(context).size.height * 0.45,
           child: market.activeSymbol == null
               ? Center(child: Text('Empty', style: TextStyle(color: MehdAiTheme.text(context))))
               : Column(
@@ -371,7 +316,7 @@ class _HomeMobileLayoutState extends State<HomeMobileLayout> {
                         () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const SandboxModeScreen())); }),
                         
                       _buildMenuCard(context, 'JOURNEY', Icons.rocket_launch, const [Color(0xFF4A0E4E), Color(0xFF220526)], const Color(0xFF9E00FF),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const JourneyScreen())); }),
+                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const JourneyScreen(showBack: true))); }),
                         
                       _buildMenuCard(context, 'CALCULATOR', Icons.calculate_rounded, const [Color(0xFF2A1C0E), Color(0xFF140D07)], MehdAiTheme.gold,
                         () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorsScreen())); }),

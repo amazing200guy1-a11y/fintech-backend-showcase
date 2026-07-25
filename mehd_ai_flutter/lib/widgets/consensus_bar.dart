@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/core/constants.dart';
 import 'package:mehd_ai_flutter/models/consensus_result.dart';
@@ -57,7 +59,7 @@ class ConsensusBar extends StatelessWidget {
           // Center: Risk Pill (Hide on very narrow screens or keep flexible)
           Flexible(flex: 2, child: LayoutBuilder(builder: (context, constraints) {
             if (constraints.maxWidth < 100) return const SizedBox.shrink();
-            return _buildRiskPill();
+            return _buildRiskPill(context);
           })),
           const SizedBox(width: 12),
           
@@ -76,7 +78,7 @@ class ConsensusBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('--%', style: MehdAiTheme.priceStyle.copyWith(color: MehdAiTheme.textSecondary, fontSize: 20)),
-          Text('Awaiting Market', style: MehdAiTheme.labelStyle.copyWith(fontSize: 10)),
+          Text('24/5 LIVE STREAM', style: MehdAiTheme.labelStyle.copyWith(fontSize: 10)),
         ],
       );
     }
@@ -165,7 +167,8 @@ class ConsensusBar extends StatelessWidget {
     );
   }
 
-  Widget _buildRiskPill() {
+  Widget _buildRiskPill(BuildContext context) {
+    final settings = Provider.of<SettingsService>(context, listen: true);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -180,7 +183,7 @@ class ConsensusBar extends StatelessWidget {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              'Risk Cap: 1.0%', 
+              'Risk Cap: ${settings.riskPerTrade.toStringAsFixed(1)}%', 
               overflow: TextOverflow.ellipsis,
               style: MehdAiTheme.labelStyle.copyWith(
                 fontSize: 10,

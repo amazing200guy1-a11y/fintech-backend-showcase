@@ -19,12 +19,18 @@ class AppConstants {
   static const String baseUrl = 'http://10.33.159.35:8000'; // ← CHANGE THIS FOR CLOUD
   static const String wsUrl = '$baseUrl/stream'; // Base path for SSE stream endpoints
 
-  // Symbols (Sniper Launch)
+  // Core Major Asset Pairs (Forex, Commodities, Crypto, Indices)
   static const List<String> symbols = [
     'EUR/USD',
-    'BTC/USD',
-    'NAS100',
+    'GBP/USD',
+    'AUD/USD',
+    'USD/JPY',
+    'USD/CAD',
     'XAU/USD',
+    'BTC/USD',
+    'ETH/USD',
+    'SPX500',
+    'NAS100',
   ];
 
   // AI Models by Layer (11 Specialized Agents)

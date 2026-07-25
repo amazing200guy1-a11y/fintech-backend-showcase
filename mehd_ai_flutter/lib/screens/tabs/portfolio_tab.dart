@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'dart:ui';
 
 class PortfolioTab extends StatelessWidget {
@@ -10,6 +12,8 @@ class PortfolioTab extends StatelessWidget {
   Widget build(BuildContext context) {
     // Mocked data for now, would fetch from OANDA / Account Health
     final List<Map<String, dynamic>> positions = [];
+    final settings = context.watch<SettingsService>();
+    final balanceStr = '\$${settings.accountBalance.toStringAsFixed(0)}';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
@@ -42,7 +46,7 @@ class PortfolioTab extends StatelessWidget {
         const SizedBox(height: 24),
 
         // Account Summary Card
-        _buildAccountSummary(),
+        _buildAccountSummary(balanceStr),
         const SizedBox(height: 24),
 
         if (positions.isEmpty)
@@ -53,14 +57,14 @@ class PortfolioTab extends StatelessWidget {
     );
   }
 
-  Widget _buildAccountSummary() {
+  Widget _buildAccountSummary(String balanceStr) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 500;
         final cards = [
-          _buildMiniMetric('EQUITY', '\$10,000', MehdAiTheme.blue),
+          _buildMiniMetric('EQUITY', balanceStr, MehdAiTheme.blue),
           _buildMiniMetric('MARGIN USED', '\$0.00', MehdAiTheme.textSecondary),
-          _buildMiniMetric('FREE MARGIN', '\$10,000', MehdAiTheme.green),
+          _buildMiniMetric('FREE MARGIN', balanceStr, MehdAiTheme.green),
           _buildMiniMetric('UNREALIZED P&L', '\$0.00', MehdAiTheme.textSecondary),
         ];
 

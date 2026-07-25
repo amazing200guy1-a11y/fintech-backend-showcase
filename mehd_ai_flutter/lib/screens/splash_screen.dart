@@ -64,8 +64,13 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   }
 
   Future<void> _navigate() async {
-    final p = await SharedPreferences.getInstance();
-    final done = p.getBool('onboarding_complete') ?? false;
+    bool done = false;
+    try {
+      final p = await SharedPreferences.getInstance();
+      done = p.getBool('onboarding_complete') ?? false;
+    } catch (e) {
+      debugPrint("Splash: Failed to load SharedPreferences: $e");
+    }
     
     User? user;
     try {

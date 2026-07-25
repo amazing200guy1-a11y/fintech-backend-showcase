@@ -70,8 +70,8 @@ def _safe_create_task(coro, name: str = "unnamed"):
 # If a pair is here but not in Flutter, it wastes API calls.
 # If a pair is in Flutter but not here, users see "No broadcast yet."
 BROADCAST_PAIRS = [
-    # Sniper Launch: 4 high-liquidity assets across Forex, Crypto, Indices, and Commodities
-    "EUR/USD", "BTC/USD", "NAS100", "XAU/USD",
+    # Core 6 Major Assets: Forex Majors, Commodity, and Institutional Liquidity
+    "EUR/USD", "GBP/USD", "AUD/USD", "USD/JPY", "USD/CAD", "XAU/USD",
 ]
 
 # How long to wait between full cycles (seconds)
@@ -113,8 +113,8 @@ class BroadcastSignal:
         pct = self.consensus.consensus_percentage
         emoji = "🟢" if direction == "BUY" else "🔴" if direction == "SELL" else "⚪"
 
-        # Only push if consensus is strong enough to be actionable (standardized at 80%)
-        if pct < 80:
+        # Only push if consensus is strong enough to be actionable (standardized at 92%)
+        if pct < 92:
             return None  # Don't spam users with weak signals
 
         return {
@@ -246,9 +246,47 @@ class Broadcaster:
         self._notification_callback = callback
         logger.info("Broadcaster notification callback registered.")
 
-    # ──────────────────────────────────────────
-    #  The Daemon Loop
-    # ──────────────────────────────────────────
+    async def ingest_news_packet(self, news_packet: dict) -> None:
+        """
+        Called by the API layer when a financial news wire pushes a new event packet.
+        Uses secretary.evaluate_incoming_news_packet() to check computer metadata tags
+        (e.g. impact_level = 'HIGH') WITHOUT reading English text or using an LLM.
+
+        If the news qualifies as HIGH or CRITICAL impact, immediately triggers an
+        out-of-cycle analysis on the affected currency pairs so users get updated
+        signals within seconds of the news wire firing — not waiting for the next
+        scheduled cycle.
+        """
+        should_trigger, category, affected_symbols = secretary.evaluate_incoming_news_packet(news_packet)
+
+        if not should_trigger:
+            logger.debug("News packet evaluated: LOW impact — no out-of-cycle analysis triggered.")
+            return
+
+        logger.info(
+            "📡 NEWS WIRE TRIGGERED OUT-OF-CYCLE ANALYSIS: Category=%s, Affected=%s",
+            category, affected_symbols
+        )
+
+        # Find which of our Core 6 pairs are affected by this news event
+        pairs_to_reanalyze = []
+        if affected_symbols:
+            for sym in affected_symbols:
+                sym_upper = sym.upper().replace("/", "")
+                for pair in BROADCAST_PAIRS:
+                    pair_clean = pair.upper().replace("/", "")
+                    if sym_upper in pair_clean and pair not in pairs_to_reanalyze:
+                        pairs_to_reanalyze.append(pair)
+        else:
+            # If news wire doesn't specify symbols, re-analyze all Core 6 pairs
+            pairs_to_reanalyze = list(BROADCAST_PAIRS)
+
+        # Trigger immediate out-of-cycle analysis (non-blocking)
+        for pair in pairs_to_reanalyze:
+            logger.info("⚡ Out-of-cycle analysis triggered for %s due to %s news", pair, category)
+            _safe_create_task(self._analyze_and_broadcast(pair), name=f"news_triggered_{pair}")
+
+
 
     async def _daemon_loop(self) -> None:
         """

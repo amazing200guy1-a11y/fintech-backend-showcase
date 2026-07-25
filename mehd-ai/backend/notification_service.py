@@ -3,10 +3,11 @@ Mehd AI — Push Notification Service
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 THE RETENTION ENGINE: When the Broadcaster detects a high-conviction
-signal (>80% consensus), fire a push notification to all subscribed users.
+signal (>= 92% consensus — "The Don Decided"), fire a push notification
+to all subscribed users via the FCM topic broadcast_alerts.
 
 Free users see a teaser: "The Den detected a signal on XAU/USD."
-Paid users see direction + confidence: "XAU/USD: BUY at 91% consensus."
+Paid users see direction + confidence: "XAU/USD: BUY at 95% consensus."
 
 This pulls users back into the app when they're not looking.
 The most valuable notification in fintech.
@@ -26,7 +27,7 @@ logger = logging.getLogger("mehd.notifications")
 NOTIFICATION_COOLDOWN_SECONDS = 3600  # 1 hour per symbol
 
 # Minimum consensus to trigger a notification
-MIN_CONVICTION_PERCENT = 80.0
+MIN_CONVICTION_PERCENT = 92.0
 
 
 def _get_firebase_messaging():

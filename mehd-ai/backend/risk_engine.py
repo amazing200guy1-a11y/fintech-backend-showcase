@@ -55,11 +55,14 @@ class HardRiskKernel:
     """
 
     # ── Constants ─────────────────────────────────────
-    MAX_RISK_PER_TRADE_PCT: float = 10.0     # Hard ceiling: user can go up to 10% (set by UI slider)
-    MAX_DAILY_DRAWDOWN_PCT: float = 3.0      # 3% daily loss → lockout
-    LOCKOUT_DURATION_HOURS: int = 24          # How long the lock lasts
-    SPREAD_VOLATILITY_THRESHOLD: float = 5.0  # Pips — above this is "wide"
-    PIP_VALUE_PER_STANDARD_LOT: float = 10.0  # $10 per pip per standard lot (simplified)
+    MAX_RISK_PER_TRADE_PCT: float = 10.0      # Hard ceiling: user can go up to 10% (set by UI slider)
+    MAX_DAILY_DRAWDOWN_PCT: float = 3.0       # 3% daily loss → lockout (matches AppConstants.killSwitchPercent)
+    # Autopilot is held to a tighter 2/3 of the user's own drawdown limit.
+    # If MAX_DAILY_DRAWDOWN_PCT ever changes, this updates automatically.
+    MAX_AUTO_DRAWDOWN_PCT: float = MAX_DAILY_DRAWDOWN_PCT * (2 / 3)  # = 2.0% by default
+    LOCKOUT_DURATION_HOURS: int = 24           # How long the lock lasts
+    SPREAD_VOLATILITY_THRESHOLD: float = 5.0   # Pips — above this is "wide"
+    PIP_VALUE_PER_STANDARD_LOT: float = 10.0   # $10 per pip per standard lot (simplified)
     
     # ── IN-MEMORY CACHE FOR GLOBAL CONSTITUTION ──
     _global_constitution_cache = None
@@ -285,8 +288,9 @@ class HardRiskKernel:
             + (potential_loss / self.account.balance * 100)
         )
 
-        # SUPREME Override: 2% max daily loss for auto-execution
-        max_drawdown = 2.0 if order.is_auto_execution else self.MAX_DAILY_DRAWDOWN_PCT
+        # SUPREME Override: autopilot is held to MAX_AUTO_DRAWDOWN_PCT (2/3 of user drawdown limit)
+        # This keeps a tighter leash on the AI than the user themselves would have.
+        max_drawdown = self.MAX_AUTO_DRAWDOWN_PCT if order.is_auto_execution else self.MAX_DAILY_DRAWDOWN_PCT
 
         if potential_drawdown_pct >= max_drawdown:
             if order.is_auto_execution:

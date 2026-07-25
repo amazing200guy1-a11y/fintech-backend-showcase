@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
+import 'package:mehd_ai_flutter/controllers/market_data_controller.dart';
 import 'dart:ui';
 import 'dart:async';
 import 'dart:math';
@@ -92,6 +94,9 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final market = context.watch<MarketDataController>();
+    final activeSymbol = market.activeSymbol ?? 'EUR/USD';
+
     return Scaffold(
       backgroundColor: MehdAiTheme.background(context),
       body: Stack(
@@ -116,7 +121,7 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
           SafeArea(
             child: Column(
               children: [
-                _buildHeaderRow(),
+                _buildHeaderRow(activeSymbol),
                 const SizedBox(height: 16),
                 Expanded(
                   child: LayoutBuilder(
@@ -127,7 +132,7 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
                           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                           child: Column(
                             children: [
-                              Expanded(flex: 4, child: _buildOrderBook()),
+                              Expanded(flex: 4, child: _buildOrderBook(market, activeSymbol)),
                               const SizedBox(height: 16),
                               Expanded(flex: 6, child: _buildAIIntercom()),
                             ],
@@ -138,7 +143,7 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
                         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                         child: Row(
                           children: [
-                            Expanded(flex: 3, child: _buildOrderBook()),
+                            Expanded(flex: 3, child: _buildOrderBook(market, activeSymbol)),
                             const SizedBox(width: 16),
                             Expanded(flex: 7, child: _buildAIIntercom()),
                           ],
@@ -156,7 +161,7 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildHeaderRow() {
+  Widget _buildHeaderRow(String activeSymbol) {
     return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -169,19 +174,10 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
           ),
           child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: MehdAiTheme.gold, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ),
               const Icon(Icons.code, color: MehdAiTheme.shieldColor, size: 20),
               const SizedBox(width: 12),
               Expanded(
-                child: Text("QUANTITATIVE TERMINAL", style: MehdAiTheme.headline.copyWith(fontSize: 14), overflow: TextOverflow.ellipsis),
+                child: Text("QUANTITATIVE TERMINAL — $activeSymbol", style: MehdAiTheme.headline.copyWith(fontSize: 14), overflow: TextOverflow.ellipsis),
               ),
               const SizedBox(width: 8),
               Flexible(child: _buildStatusBadge("LATENCY", "12ms", MehdAiTheme.green)),
@@ -211,7 +207,14 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildOrderBook() {
+  Widget _buildOrderBook(MarketDataController market, String activeSymbol) {
+    final snapshot = market.latestSnapshot;
+    final double basePrice = snapshot?.close ?? (activeSymbol.contains('XAU') ? 2350.0 : activeSymbol.contains('BTC') ? 65000.0 : activeSymbol.contains('JPY') ? 155.00 : 1.0850);
+    final double spread = snapshot?.spread ?? 0.4;
+    final bool isWideDigitAsset = activeSymbol.contains('JPY') || activeSymbol.contains('XAU') || activeSymbol.contains('BTC');
+    final int decimals = isWideDigitAsset ? 2 : 5;
+    final double step = isWideDigitAsset ? (activeSymbol.contains('BTC') ? 5.0 : 0.10) : 0.00010;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -226,7 +229,20 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text("LEVEL 2 DEPTH", style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.textSecondary, fontWeight: FontWeight.bold)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("LEVEL 2 DEPTH — $activeSymbol", style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.textSecondary, fontWeight: FontWeight.bold)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: MehdAiTheme.green.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text("LIVE TICKS", style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.green, fontSize: 9, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               // ASKS (RED)
               Expanded(
@@ -234,9 +250,9 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
                   itemCount: 15,
                   reverse: true, // Asks go up from center
                   itemBuilder: (context, index) {
-                    final price = 1.25000 + ((15 - index) * 0.00010);
+                    final price = (basePrice + (spread * 0.0001)) + ((15 - index) * step);
                     final size = _rnd.nextInt(500) + 10;
-                    return _buildBookRow(price, size, MehdAiTheme.red);
+                    return _buildBookRow(price, size, MehdAiTheme.red, decimals);
                   },
                 ),
               ),
@@ -250,7 +266,7 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
                   color: MehdAiTheme.gold.withOpacity(0.05),
                 ),
                 child: Center(
-                  child: Text("SPREAD 0.4 PIP", style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.gold, fontSize: 11)),
+                  child: Text("SPREAD ${spread.toStringAsFixed(1)} PIP", style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.gold, fontSize: 11)),
                 ),
               ),
               // BIDS (GREEN)
@@ -258,9 +274,9 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
                 child: ListView.builder(
                   itemCount: 15,
                   itemBuilder: (context, index) {
-                    final price = 1.24996 - (index * 0.00010);
+                    final price = basePrice - (index * step);
                     final size = _rnd.nextInt(500) + 10;
-                    return _buildBookRow(price, size, MehdAiTheme.green);
+                    return _buildBookRow(price, size, MehdAiTheme.green, decimals);
                   },
                 ),
               ),
@@ -271,13 +287,13 @@ class _TerminalScreenState extends State<TerminalScreen> with TickerProviderStat
     );
   }
 
-  Widget _buildBookRow(double price, int size, Color color) {
+  Widget _buildBookRow(double price, int size, Color color, int decimals) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(price.toStringAsFixed(5), style: MehdAiTheme.dataMono.copyWith(color: color, fontSize: 13)),
+          Text(price.toStringAsFixed(decimals), style: MehdAiTheme.dataMono.copyWith(color: color, fontSize: 13)),
           Text(size.toString().padLeft(4, ' '), style: MehdAiTheme.dataMono.copyWith(color: MehdAiTheme.textSecondary, fontSize: 13)),
         ],
       ),

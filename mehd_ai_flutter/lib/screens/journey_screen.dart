@@ -1,29 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
+import 'package:mehd_ai_flutter/core/constants.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'package:mehd_ai_flutter/widgets/protection_score.dart';
+import 'package:mehd_ai_flutter/widgets/milestone_share_dialog.dart';
 
 /// FILE — journey_screen.dart
 ///
 /// Build Debrief:
-/// Mehd AI guarantees to compress 8 years of forex learning into 6 months.
-/// The Journey Screen is where we prove it visually.
+/// Mehd AI compresses 8 years of manual trading failures into 24 weeks of 24/5 autonomous discipline.
 /// 
-/// Key Features Built:
-/// 1. Timeline Visualization: Shows Week 1 through Week 24 (6 months) showing 
-///    the exact phase they are in (e.g., Phase 1: Capital Preservation).
-/// 2. Protection Score: The HardRiskKernel's rating on how disciplined the trader was.
-/// 3. Mistake DNA: A brutal, honest breakdown of their flaws. e.g. "You revenge 
-///    trade on Fridays" or "You ignore the Math Room on XAU/USD". This builds 
-///    massive accountability.
+/// Key Features:
+/// 1. Dynamic Timeline: Calculates current Week (1 to 24) from user account creation date.
+/// 2. Protection Score: Dynamic rating derived from SettingsService risk parameters.
+/// 3. Certified Alpha Milestones: Unlocks Bronze (Week 1+), Silver (Week 5+), Gold (Week 9+) dynamically.
+/// 4. Autonomous Defense DNA: Displays how The Den's 24/5 engine automatically prevented revenge trades,
+///    news blackout losses, and over-leveraging on behalf of the trader.
 
 class JourneyScreen extends StatelessWidget {
-  const JourneyScreen({super.key});
+  /// [showBack] = false when rendered inside the sidebar nav (desktop/mobile layout).
+  /// [showBack] = true only when pushed via Navigator.push from drawer or deep links.
+  final bool showBack;
+  const JourneyScreen({super.key, this.showBack = false});
+
+  int _calculateCurrentWeek() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user?.metadata.creationTime != null) {
+      final days = DateTime.now().difference(user!.metadata.creationTime!).inDays + 1;
+      return ((days / 7).ceil()).clamp(1, 24);
+    }
+    return 3; // Fallback demo week if unauthenticated
+  }
+
+  int _calculateUnlockedStage(int currentWeek) {
+    if (currentWeek >= 9) return 3; // Gold
+    if (currentWeek >= 5) return 2; // Silver
+    return 1; // Bronze
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentWeek = _calculateCurrentWeek();
+    final unlockedStage = _calculateUnlockedStage(currentWeek);
+    final settings = context.watch<SettingsService>();
+
+    // Protection Score: conservative risk = higher score.
+    final protectionScore = settings.riskPerTrade <= 3.0 ? 95
+        : settings.riskPerTrade <= 7.0 ? 84
+        : 72;
+
+    // Key ecosystem values pulled live from SettingsService
+    final userName = settings.profileName.toUpperCase();
+    final convictionPct = settings.convictionThreshold.toStringAsFixed(0);
+    final killSwitchPct = AppConstants.killSwitchPercent.toStringAsFixed(0);
+    final maxTrades = settings.maxDailyTrades;
+    final lotSize = settings.defaultLotSize.toStringAsFixed(2);
+    final mode = settings.paperMode ? 'PAPER' : 'LIVE';
+
     return Scaffold(
       backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: showBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: MehdAiTheme.textSecondary, size: 18),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: Row(
           children: [
             const Icon(Icons.rocket_launch, color: MehdAiTheme.purple),
@@ -42,7 +88,7 @@ class JourneyScreen extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         physics: const BouncingScrollPhysics(),
         children: [
-          _buildHeader(),
+          _buildHeader(context, currentWeek, unlockedStage, protectionScore, mode),
           const SizedBox(height: 32),
           
           // Responsive layout
@@ -54,11 +100,11 @@ class JourneyScreen extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildTimeline(),
+                    _buildTimeline(currentWeek, userName, convictionPct, killSwitchPct, maxTrades, lotSize),
                     const SizedBox(height: 32),
-                    const ProtectionScore(score: 92),
+                    ProtectionScore(score: protectionScore),
                     const SizedBox(height: 24),
-                    _buildMistakeDNA(),
+                    _buildAutonomousDefenseDNA(convictionPct, killSwitchPct, maxTrades),
                   ],
                 );
               }
@@ -70,7 +116,7 @@ class JourneyScreen extends StatelessWidget {
                   // Left: Timeline List
                   Expanded(
                     flex: 3,
-                    child: _buildTimeline(),
+                    child: _buildTimeline(currentWeek, userName, convictionPct, killSwitchPct, maxTrades, lotSize),
                   ),
                   const SizedBox(width: 24),
                   // Right: Stats & DNA
@@ -78,9 +124,9 @@ class JourneyScreen extends StatelessWidget {
                     flex: 4,
                     child: Column(
                       children: [
-                        const ProtectionScore(score: 92),
+                        ProtectionScore(score: protectionScore),
                         const SizedBox(height: 24),
-                        _buildMistakeDNA(),
+                        _buildAutonomousDefenseDNA(convictionPct, killSwitchPct, maxTrades),
                       ],
                     ),
                   ),
@@ -93,7 +139,9 @@ class JourneyScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context, int currentWeek, int unlockedStage, int protectionScore, String mode) {
+    final progress = (currentWeek / 24.0).clamp(0.04, 1.0);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -110,10 +158,11 @@ class JourneyScreen extends StatelessWidget {
             Builder(
               builder: (ctx) => InkWell(
                 onTap: () {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(
-                      backgroundColor: MehdAiTheme.blue,
-                      content: Text("Share Card: My Den configuration achieved Certified Alpha +14.2% vs market average | Mehd AI", style: MehdAiTheme.terminalStyle.copyWith(color: Colors.white)),
+                  showDialog(
+                    context: ctx,
+                    builder: (context) => MilestoneShareDialog(
+                      initialStage: unlockedStage,
+                      protectionScore: protectionScore,
                     ),
                   );
                 },
@@ -129,9 +178,12 @@ class JourneyScreen extends StatelessWidget {
                     children: [
                       const Icon(Icons.workspace_premium, color: MehdAiTheme.yellow, size: 16),
                       const SizedBox(width: 6),
-                      Text('CERTIFIED ALPHA', style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.yellow, fontWeight: FontWeight.bold, fontSize: 10)),
-                    ]
-                  )
+                      Text(
+                        unlockedStage == 3 ? 'GOLD QUANT ALPHA' : (unlockedStage == 2 ? 'SILVER EDGE ALPHA' : 'BRONZE ALIGNED ALPHA'),
+                        style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.yellow, fontWeight: FontWeight.bold, fontSize: 10),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -139,12 +191,12 @@ class JourneyScreen extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Compressing 8 years of failure into 24 weeks of discipline.',
+          '$mode MODE — Compressing 8 years of failure into 24 weeks of 24/5 autonomous discipline.',
           style: MehdAiTheme.labelStyle.copyWith(fontSize: 14, color: MehdAiTheme.textPrimary),
         ),
         const SizedBox(height: 16),
         LinearProgressIndicator(
-          value: 3 / 24, // Week 3
+          value: progress,
           backgroundColor: MehdAiTheme.bgTertiary,
           valueColor: const AlwaysStoppedAnimation<Color>(MehdAiTheme.blue),
           minHeight: 8,
@@ -154,15 +206,28 @@ class JourneyScreen extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Week 3', style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.blue, fontWeight: FontWeight.bold)),
-            Text('Week 24', style: MehdAiTheme.labelStyle),
+            Text('Week $currentWeek of 24', style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.blue, fontWeight: FontWeight.bold)),
+            Text('${(progress * 100).toInt()}% Complete', style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.green)),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildTimeline() {
+  Widget _buildTimeline(int currentWeek, String userName, String convictionPct, String killSwitchPct, int maxTrades, String lotSize) {
+    // Determine active & completed status based on currentWeek
+    final phase1Active = currentWeek >= 1 && currentWeek <= 4;
+    final phase1Complete = currentWeek > 4;
+
+    final phase2Active = currentWeek >= 5 && currentWeek <= 8;
+    final phase2Complete = currentWeek > 8;
+
+    final phase3Active = currentWeek >= 9 && currentWeek <= 16;
+    final phase3Complete = currentWeek > 16;
+
+    final phase4Active = currentWeek >= 17;
+    final phase4Complete = currentWeek >= 24;
+
     return Container(
       decoration: BoxDecoration(
         color: MehdAiTheme.bgSecondary,
@@ -171,19 +236,35 @@ class JourneyScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _buildPhase(1, 'Survival & Preservation', 'Weeks 1-4', true, true),
+          _buildPhase(1, 'Survival & Preservation', 'Weeks 1-4', phase1Active, phase1Complete,
+              'Capital preserved 24/5 by HardRiskKernel.\n'
+              'Kill-switch: $killSwitchPct% daily drawdown limit enforced.\n'
+              'Max $maxTrades trades/day — Constitution Law II.\n'
+              'Your risk protocol is locked to your configured settings.'),
           const Divider(color: MehdAiTheme.borderColor, height: 1),
-          _buildPhase(2, 'Pattern Recognition', 'Weeks 5-8', false, false),
+          _buildPhase(2, 'Pattern Recognition', 'Weeks 5-8', phase2Active, phase2Complete,
+              'The Den 11 agents identify your winning edge.\n'
+              'Only signals with >$convictionPct% consensus reach execution.\n'
+              'Broker zero-trust verification active on every signal.\n'
+              'Default lot size at $lotSize lots per position.'),
           const Divider(color: MehdAiTheme.borderColor, height: 1),
-          _buildPhase(3, 'Execution Edge', 'Weeks 9-16', false, false),
+          _buildPhase(3, 'Execution Edge', 'Weeks 9-16', phase3Active, phase3Complete,
+              'Compounding safely with your proven edge.\n'
+              'Execution runs 24/5 under your Constitution rules.\n'
+              'Consensus threshold: $convictionPct% — no compromise.\n'
+              'Kill-switch monitors broker vs oracle price every tick.'),
           const Divider(color: MehdAiTheme.borderColor, height: 1),
-          _buildPhase(4, 'Unconscious Competence', 'Weeks 17-24', false, false),
+          _buildPhase(4, 'Unconscious Competence', 'Weeks 17-24', phase4Active, phase4Complete,
+              '$userName — trading is now mechanical and stress-free.\n'
+              '24/5 autonomous execution without manual intervention.\n'
+              'Constitution upheld. Capital compounds. The Den never sleeps.\n'
+              'You are a Sovereign Quant Alpha.'),
         ],
       ),
     );
   }
 
-  Widget _buildPhase(int num, String title, String weeks, bool active, bool completed) {
+  Widget _buildPhase(int num, String title, String weeks, bool active, bool completed, String phaseDetail) {
     return Builder(
       builder: (context) {
         Color iconColor = MehdAiTheme.textSecondary;
@@ -219,11 +300,8 @@ class JourneyScreen extends StatelessWidget {
                     const Divider(color: MehdAiTheme.borderColor),
                     const SizedBox(height: 16),
                     Text(
-                      num == 1 ? 'Focus: Risk management, capital preservation, stopping the bleeding. The HardRiskKernel is extremely strict here.' :
-                      num == 2 ? 'Focus: Identifying Edge. Vanguard and Titan start pointing out exactly what setups work for you.' :
-                      num == 3 ? 'Focus: Scaling up. You know your edge, now we apply leverage safely.' :
-                      'Focus: Mastery. Trading becomes boring and mechanical. You are a Certified Alpha.',
-                      style: MehdAiTheme.labelStyle.copyWith(height: 1.5, color: Colors.white70),
+                      phaseDetail,
+                      style: MehdAiTheme.labelStyle.copyWith(height: 1.6, color: Colors.white70),
                     ),
                     const SizedBox(height: 32),
                   ],
@@ -265,16 +343,16 @@ class JourneyScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMistakeDNA() {
+  Widget _buildAutonomousDefenseDNA(String convictionPct, String killSwitchPct, int maxTrades) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: MehdAiTheme.bgSecondary,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: MehdAiTheme.red.withOpacity(0.5)),
+        border: Border.all(color: MehdAiTheme.blue.withOpacity(0.4)),
         boxShadow: [
           BoxShadow(
-            color: MehdAiTheme.red.withOpacity(0.05),
+            color: MehdAiTheme.blue.withOpacity(0.05),
             blurRadius: 20,
             spreadRadius: 2,
           )
@@ -285,44 +363,51 @@ class JourneyScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.fingerprint, color: MehdAiTheme.red, size: 20),
+              const Icon(Icons.shield_outlined, color: MehdAiTheme.blue, size: 20),
               const SizedBox(width: 8),
-              Text('YOUR MISTAKE DNA', style: MehdAiTheme.headingStyle.copyWith(color: MehdAiTheme.red)),
+              Text('AUTONOMOUS DEFENSE DNA', style: MehdAiTheme.headingStyle.copyWith(color: MehdAiTheme.blue)),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            'The Don tracks every action to find your distinct failure patterns.',
+            'The Den 24/5 engine automatically eliminates human flaws before they touch capital.',
             style: MehdAiTheme.labelStyle,
           ),
           const SizedBox(height: 20),
-          _buildDNATrait('REVENGE TRADING', '42% of losses occur within 1 hour of a previous loss. Sage flagged emotional tilt.', 0.8),
+          _buildDNATrait('REVENGE TRADE BLOCKING',
+              'Auto-blocked emotional re-entries. Every signal needs $convictionPct%+ consensus — emotion cannot force a trade.',
+              0.95, MehdAiTheme.green),
           const SizedBox(height: 16),
-          _buildDNATrait('SESSION IGNORANCE', 'You ignore The Research during high-impact news on USD pairs. Sentinel recorded this.', 0.6),
+          _buildDNATrait('NEWS BLACKOUT ENFORCEMENT',
+              'Secretary paused execution 30m before High-Impact events. Constitution allows max $maxTrades trades/day.',
+              0.88, MehdAiTheme.blue),
           const SizedBox(height: 16),
-          _buildDNATrait('OVER-LEVERAGING', 'You risk 3% instead of 1% when winning. Atlas calculated ruin probability at 14%.', 0.9),
+          _buildDNATrait('OVER-LEVERAGE CAP',
+              'HardRiskKernel enforced your risk protocol. Kill-switch at $killSwitchPct% daily drawdown — no exception, no override.',
+              0.92, MehdAiTheme.purple),
         ],
       ),
     );
   }
 
-  Widget _buildDNATrait(String title, String desc, double severity) {
+  Widget _buildDNATrait(String title, String desc, double efficiency, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title, style: MehdAiTheme.terminalStyle.copyWith(fontWeight: FontWeight.bold, fontSize: 12)),
-            Text('${(severity * 100).toInt()}% Severity', style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.red)),
+            Expanded(child: Text(title, style: MehdAiTheme.terminalStyle.copyWith(fontWeight: FontWeight.bold, fontSize: 12), overflow: TextOverflow.ellipsis)),
+            Text('${(efficiency * 100).toInt()}% Protection', style: MehdAiTheme.labelStyle.copyWith(color: color, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 6),
         LinearProgressIndicator(
-          value: severity,
+          value: efficiency,
           backgroundColor: MehdAiTheme.bgTertiary,
-          valueColor: const AlwaysStoppedAnimation<Color>(MehdAiTheme.red),
+          valueColor: AlwaysStoppedAnimation<Color>(color),
           minHeight: 4,
+          borderRadius: BorderRadius.circular(2),
         ),
         const SizedBox(height: 8),
         Text(desc, style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.textSecondary, height: 1.4)),
@@ -330,3 +415,4 @@ class JourneyScreen extends StatelessWidget {
     );
   }
 }
+

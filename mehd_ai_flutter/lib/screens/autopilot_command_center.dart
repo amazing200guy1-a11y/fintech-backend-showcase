@@ -16,7 +16,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 // New Tabs
 import 'package:mehd_ai_flutter/screens/tabs/command_tab.dart';
 import 'package:mehd_ai_flutter/screens/tabs/portfolio_tab.dart';
-import 'package:mehd_ai_flutter/screens/tabs/history_tab.dart';
 import 'package:mehd_ai_flutter/screens/den/the_den_screen.dart';
 
 import 'package:mehd_ai_flutter/screens/war_room_community_screen.dart';
@@ -184,14 +183,14 @@ class _AutopilotCommandCenterState extends State<AutopilotCommandCenter> with Si
                       _buildMenuCard(context, 'RESEARCH', Icons.travel_explore_rounded, const [Color(0xFF2D1B4E), Color(0xFF1A0F30)], const Color(0xFFBC8CFF),
                         () => navTo(4, () => Scaffold(appBar: AppBar(title: const Text('RESEARCH INTELLIGENCE')), backgroundColor: MehdAiTheme.bgPrimary, body: const ResearchRoom()))),
                         
-                      _buildMenuCard(context, 'PULSE', Icons.psychology_rounded, const [Color(0xFF0A2A18), Color(0xFF06180E)], const Color(0xFF00FF88),
+                      _buildMenuCard(context, 'NEURO PULSE', Icons.psychology_rounded, const [Color(0xFF0A2A18), Color(0xFF06180E)], const Color(0xFF00FF88),
                         () => navTo(6, () => const PulseTradingScreen())),
                         
                       _buildMenuCard(context, 'SANDBOX', Icons.visibility_rounded, const [Color(0xFF1A1040), Color(0xFF0D0820)], const Color(0xFFBC8CFF),
                         () => navTo(7, () => const SandboxModeScreen())),
                         
                       _buildMenuCard(context, 'JOURNEY', Icons.rocket_launch, const [Color(0xFF4A0E4E), Color(0xFF220526)], const Color(0xFF9E00FF),
-                        () => navTo(8, () => const JourneyScreen())),
+                        () => navTo(14, () => const JourneyScreen())),
                         
                       _buildMenuCard(context, 'CALCULATOR', Icons.calculate_rounded, const [Color(0xFF2A1C0E), Color(0xFF140D07)], MehdAiTheme.gold,
                         () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorsScreen())); }),
@@ -314,12 +313,17 @@ class _AutopilotCommandCenterState extends State<AutopilotCommandCenter> with Si
       appBar: AppBar(
         backgroundColor: MehdAiTheme.surface(context),
         elevation: 0,
+        toolbarHeight: 48,
         centerTitle: false,
         title: Consumer<PaymentService>(
           builder: (context, payment, _) {
             final isTiger = payment.isTigerModeEnabled;
             return Row(
               children: [
+                ClipOval(
+                  child: Image.asset('assets/images/mehd_logo.png', width: 22, height: 22),
+                ),
+                const SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -328,14 +332,14 @@ class _AutopilotCommandCenterState extends State<AutopilotCommandCenter> with Si
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
-                        fontSize: 17,
+                        fontSize: 15,
                       ),
                     ),
                     Text(
                       isTiger ? 'Tiger Mode active' : 'Signal monitor running',
                       style: const TextStyle(
                         color: Colors.white38,
-                        fontSize: 11,
+                        fontSize: 10,
                       ),
                     ),
                   ],
@@ -345,75 +349,96 @@ class _AutopilotCommandCenterState extends State<AutopilotCommandCenter> with Si
           },
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12.0),
-            child: TextButton.icon(
-              onPressed: () => _showDenActionMenu(context),
-              style: TextButton.styleFrom(
-                backgroundColor: MehdAiTheme.blue.withOpacity(0.12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: BorderSide(color: MehdAiTheme.blue.withOpacity(0.35), width: 1),
+          // Live status dot — green = backend up, red = down
+          Consumer<MarketDataController>(
+            builder: (context, market, _) {
+              final isLive = market.activeSymbol != null;
+              return Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isLive
+                            ? const Color(0xFF00FF88)
+                            : const Color(0xFF444444),
+                        boxShadow: isLive
+                            ? [BoxShadow(color: const Color(0xFF00FF88).withOpacity(0.5), blurRadius: 6, spreadRadius: 1)]
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isLive ? 'LIVE' : 'IDLE',
+                      style: TextStyle(
+                        color: isLive ? const Color(0xFF00FF88) : const Color(0xFF555555),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              icon: ClipOval(
-                child: Image.asset('assets/images/mehd_logo.png', width: 20, height: 20),
-              ),
-              label: const Text(
-                'HUB',
-                style: TextStyle(
-                  color: MehdAiTheme.blue,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
+              );
+            },
           ),
         ],
       ),
       body: _buildBody(),
-      extendBody: true, // Needed for blur to show background
+      extendBody: true,
       bottomNavigationBar: ClipRRect(
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            color: MehdAiTheme.bgSecondary.withOpacity(0.7),
+            color: MehdAiTheme.bgSecondary.withOpacity(0.85),
             child: BottomNavigationBar(
               type: BottomNavigationBarType.fixed,
-              backgroundColor: Colors.transparent, // Let glass show through
+              backgroundColor: Colors.transparent,
               selectedItemColor: MehdAiTheme.blue,
-              unselectedItemColor: MehdAiTheme.textSecondary,
-              selectedFontSize: 11,
-              unselectedFontSize: 11,
-              iconSize: 28,
-              currentIndex: _currentIndex,
+              unselectedItemColor: const Color(0xFF444444),
+              selectedFontSize: 10,
+              unselectedFontSize: 10,
+              iconSize: 24,
+              currentIndex: _currentIndex > 3 ? 0 : _currentIndex,
               onTap: (index) {
+                if (index == 4) {
+                  // HUB tab opens the grid menu — no screen change
+                  _showDenActionMenu(context);
+                  return;
+                }
                 setState(() {
                   _currentIndex = index;
                 });
               },
               items: const [
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.monitor_heart_outlined),
-                  activeIcon: Icon(Icons.monitor_heart),
-                  label: 'Monitor',
+                  icon: Icon(Icons.terminal_outlined),
+                  activeIcon: Icon(Icons.terminal),
+                  label: 'Terminal',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.analytics_outlined),
-                  activeIcon: Icon(Icons.analytics),
-                  label: 'Analysis',
+                  icon: Icon(Icons.hub_outlined),
+                  activeIcon: Icon(Icons.hub),
+                  label: 'The Den',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.precision_manufacturing_outlined),
+                  activeIcon: Icon(Icons.precision_manufacturing),
+                  label: 'Command',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.pie_chart_outline),
                   activeIcon: Icon(Icons.pie_chart),
-                  label: 'Positions',
+                  label: 'Portfolio',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.receipt_long_outlined),
-                  activeIcon: Icon(Icons.receipt_long),
-                  label: 'History',
+                  icon: Icon(Icons.apps_outlined),
+                  activeIcon: Icon(Icons.apps),
+                  label: 'Hub',
                 ),
               ],
             ),
@@ -454,6 +479,7 @@ class _AutopilotCommandCenterState extends State<AutopilotCommandCenter> with Si
     Widget activeTab;
     switch (_currentIndex) {
       case 0:
+        // TERMINAL — chart + AI terminal (the cleaned-up HomeMobileLayout)
         activeTab = Consumer2<TradingController, MarketDataController>(
           builder: (ctx, trading, market, _) {
             final width = MediaQuery.of(context).size.width;
@@ -465,6 +491,7 @@ class _AutopilotCommandCenterState extends State<AutopilotCommandCenter> with Si
         );
         break;
       case 1:
+        // THE DEN — multi-agent analysis system
         activeTab = Consumer<MarketDataController>(
           builder: (ctx, market, _) {
             return TheDenScreen(
@@ -477,13 +504,18 @@ class _AutopilotCommandCenterState extends State<AutopilotCommandCenter> with Si
         );
         break;
       case 2:
-        activeTab = const PortfolioTab();
+        // COMMAND — Autopilot execution tab
+        activeTab = const CommandTab();
         break;
       case 3:
-        activeTab = const HistoryTab();
+        // PORTFOLIO — positions + history
+        activeTab = const PortfolioTab();
         break;
       default:
-        activeTab = const Center(child: Text('Something went wrong'));
+        activeTab = Consumer2<TradingController, MarketDataController>(
+          builder: (ctx, trading, market, _) =>
+            HomeMobileLayout(trading: trading, market: market),
+        );
     }
 
     return activeTab;

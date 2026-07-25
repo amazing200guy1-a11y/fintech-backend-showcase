@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
 import 'package:mehd_ai_flutter/widgets/mehd_mascot.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
 
 /// FILE — rejection_feed_screen.dart
 /// UPGRADE 4: Live Rejection Feed (Connected to Firestore)
@@ -50,6 +52,7 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
     return Scaffold(
       backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text('REJECTION & PROTECT FEED', style: MehdAiTheme.headingStyle.copyWith(letterSpacing: 2)),
         backgroundColor: MehdAiTheme.bgSecondary,
         iconTheme: const IconThemeData(color: MehdAiTheme.textPrimary),
@@ -64,6 +67,7 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
             .doc(_uid)
             .collection('rejection_feed')
             .orderBy('timestamp', descending: true)
+            .limit(50) // Cost cap: max 50 reads per open — not unbounded
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -169,7 +173,7 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                             itemCount: rejections.length,
                             itemBuilder: (context, index) {
-                              return _buildRejectionCard(rejections[index]);
+                              return _buildRejectionCard(context, rejections[index]);
                             },
                           ),
                   ),
@@ -265,7 +269,7 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
           child: Column(
             children: [
               Text(
-                value.toString(),
+                value?.toString() ?? '0',
                 style: GoogleFonts.outfit(
                   color: color,
                   fontSize: 22,
@@ -287,7 +291,9 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
     );
   }
 
-  Widget _buildRejectionCard(Map<String, dynamic> rejection) {
+  Widget _buildRejectionCard(BuildContext context, Map<String, dynamic> rejection) {
+    final showAgentNames = context.watch<SettingsService>().showAgentNames;
+
     final symbol = rejection['symbol'] as String;
     final reason = rejection['reason'] as String;
     final details = rejection['details'] as String;
@@ -375,7 +381,7 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
                           children: [
                             const Icon(Icons.savings_outlined, color: MehdAiTheme.green, size: 14),
                             const SizedBox(width: 6),
-                            Text('\$${(saved as double).toStringAsFixed(2)} preserved', style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.green, fontSize: 11, fontWeight: FontWeight.bold)),
+                            Text('\$${(saved as num).toDouble().toStringAsFixed(2)} preserved', style: MehdAiTheme.terminalStyle.copyWith(color: MehdAiTheme.green, fontSize: 11, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -384,22 +390,28 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: agents.map((agent) => Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: MehdAiTheme.red.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: MehdAiTheme.red.withOpacity(0.2)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.close, size: 12, color: MehdAiTheme.red),
-                            const SizedBox(width: 4),
-                            Text(agent.toString(), style: MehdAiTheme.terminalStyle.copyWith(fontSize: 10, color: MehdAiTheme.red, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      )).toList(),
+                      children: agents.map((agent) {
+                        // Mask agent name if showAgentNames is false
+                        final displayName = showAgentNames 
+                            ? (agent?.toString() ?? 'AGENT')
+                            : 'AGENT #${(agent?.toString() ?? 'AGENT').hashCode.abs().toString().padLeft(4, '0').substring(0, 4)}';
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: MehdAiTheme.red.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: MehdAiTheme.red.withOpacity(0.2)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.close, size: 12, color: MehdAiTheme.red),
+                              const SizedBox(width: 4),
+                              Text(displayName, style: MehdAiTheme.terminalStyle.copyWith(fontSize: 10, color: MehdAiTheme.red, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ],
                 ),

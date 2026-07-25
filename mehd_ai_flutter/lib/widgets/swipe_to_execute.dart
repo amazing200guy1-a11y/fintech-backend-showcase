@@ -76,10 +76,11 @@ class _SwipeToExecuteBtnState extends State<SwipeToExecuteBtn> {
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
-                    "CLICK TO INITIATE STRIKE",
+                    widget.text,
                     style: MehdAiTheme.headingStyle.copyWith(
                       color: widget.baseColor,
                       fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),

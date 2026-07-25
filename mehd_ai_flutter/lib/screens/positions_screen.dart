@@ -27,7 +27,7 @@ class _PositionsScreenState extends State<PositionsScreen>
       'entry': 1.0850,
       'current': 1.0875,
       'pnl': 125.00,
-      'health': 88,
+      'timestamp': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
     },
     {
       'id': '2',
@@ -37,7 +37,7 @@ class _PositionsScreenState extends State<PositionsScreen>
       'entry': 190.50,
       'current': 190.51,
       'pnl': -0.50,
-      'health': 42,
+      'timestamp': DateTime.now().subtract(const Duration(hours: 5)).toIso8601String(),
     },
   ];
 
@@ -92,6 +92,54 @@ class _PositionsScreenState extends State<PositionsScreen>
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  double _getPipSize(String symbol) {
+    final sym = symbol.toUpperCase().replaceAll('/', '');
+    if (sym.contains('XAU')) {
+      return 0.01;
+    }
+    if (sym.contains('JPY')) {
+      return 0.01;
+    }
+    return 0.0001;
+  }
+
+  int _calculateHealthScore(Map<String, dynamic> p) {
+    final symbol = p['symbol'] as String;
+    final direction = p['direction'] as String;
+    final entry = p['entry'] as double;
+    final current = p['current'] as double;
+    final timestampStr = p['timestamp'] as String?;
+
+    final pipSize = _getPipSize(symbol);
+    if (pipSize <= 0) return 100;
+
+    double pipDiff = (current - entry) / pipSize;
+    if (direction.toUpperCase() == 'SELL') {
+      pipDiff = -pipDiff;
+    }
+
+    double health = 100.0;
+
+    // Penalty for drawdown (30 pips = -45% health)
+    if (pipDiff < 0) {
+      health -= (pipDiff.abs() * 1.5).clamp(0.0, 60.0);
+    } else {
+      // Bonus for profit (capped)
+      health += (pipDiff * 0.5).clamp(0.0, 10.0);
+    }
+
+    // Time decay
+    if (timestampStr != null) {
+      try {
+        final entryTime = DateTime.parse(timestampStr);
+        final hoursIn = DateTime.now().difference(entryTime).inSeconds / 3600.0;
+        health -= (hoursIn * 1.5); // -1.5% per hour
+      } catch (_) {}
+    }
+
+    return health.clamp(0.0, 100.0).round();
   }
 
   @override
@@ -357,7 +405,7 @@ class _PositionsScreenState extends State<PositionsScreen>
                       ),
                     ),
                     const SizedBox(height: 4),
-                    TradeHealthIndicator(healthScore: p['health'] ?? 100),
+                    TradeHealthIndicator(healthScore: _calculateHealthScore(p)),
                   ],
                 ),
               ],

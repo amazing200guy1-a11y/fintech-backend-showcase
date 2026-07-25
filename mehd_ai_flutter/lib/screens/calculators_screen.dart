@@ -33,11 +33,14 @@ class _CalculatorsScreenState extends State<CalculatorsScreen>
     
     // Defer reading from Provider to after build context is fully ready
     Future.microtask(() {
+      if (!mounted) return; // Guard: widget may have been disposed before microtask fires
       final settings = context.read<SettingsService>();
-      _balanceController.text = settings.accountBalance.toString();
-      _riskController.text = settings.riskPerTrade.toString();
-      _stopLossController.text = settings.defaultStopLoss.toString();
-      _leverageController.text = settings.defaultLeverage.toString();
+      _balanceController.text = '${settings.accountBalance}';
+      _riskController.text = '${settings.riskPerTrade}';
+      _stopLossController.text = '${settings.defaultStopLoss}';
+      _leverageController.text = '${settings.defaultLeverage}';
+      _pipLotController.text = '${settings.defaultLotSize}';
+      _marginLotController.text = '${settings.defaultLotSize}';
       setState(() {});
     });
   }
@@ -64,6 +67,8 @@ class _CalculatorsScreenState extends State<CalculatorsScreen>
     if (sl != null) settings.setDefaultStopLoss(sl);
     final lev = double.tryParse(_leverageController.text);
     if (lev != null) settings.setDefaultLeverage(lev);
+    final pipLot = double.tryParse(_pipLotController.text);
+    if (pipLot != null) settings.setDefaultLotSize(pipLot);
   }
 
   double _calculatePositionSize() {

@@ -244,6 +244,26 @@ function sendToFlutter(data) {
 // ════════════════════════════════════════════
 // CRYPTO FETCH (ADBLOCK & ISP BYPASS VIA LOCAL PROXY)
 // ════════════════════════════════════════════
+let apiBase = '/api/mexc';
+if (window.location.protocol === 'file:' || !window.location.host || window.location.href.includes('appassets.android') || window.location.href.includes('flutter')) {
+  apiBase = 'https://api.mexc.com';
+}
+
+async function fetchWithFallback(urlPath) {
+  try {
+    const res = await fetch(apiBase + urlPath);
+    if (res.ok) return res;
+    throw new Error("Proxy error status " + res.status);
+  } catch (e) {
+    if (apiBase !== 'https://api.mexc.com') {
+      console.warn("Proxy fetch failed, falling back to direct MEXC API:", e);
+      apiBase = 'https://api.mexc.com';
+      return await fetch(apiBase + urlPath);
+    }
+    throw e;
+  }
+}
+
 async function loadCryptoDirect(symbol, interval = '1m') {
   const coin = symbol.split('/')[0]; // BTC
   const pair = coin + 'USDT';
@@ -276,7 +296,7 @@ async function loadCryptoDirect(symbol, interval = '1m') {
       });
       candles.applyOptions({ autoscaleInfoProvider: undefined });
 
-      const res = await fetch(`/api/mexc/api/v3/trades?symbol=${pair}&limit=200&_t=${Date.now()}`);
+      const res = await fetchWithFallback(`/api/v3/trades?symbol=${pair}&limit=200&_t=${Date.now()}`);
       const data = await res.json();
 
       if (Array.isArray(data) && data.length > 0) {
@@ -332,7 +352,7 @@ async function loadCryptoDirect(symbol, interval = '1m') {
 
       cryptoWsInterval = setInterval(async () => {
         try {
-          const tRes = await fetch(`/api/mexc/api/v3/trades?symbol=${pair}&limit=50&_t=${Date.now()}`);
+          const tRes = await fetchWithFallback(`/api/v3/trades?symbol=${pair}&limit=50&_t=${Date.now()}`);
           const tData = await tRes.json();
           if (Array.isArray(tData) && tData.length > 0) {
             tData.sort((a, b) => a.time - b.time);
@@ -384,7 +404,7 @@ async function loadCryptoDirect(symbol, interval = '1m') {
       if (interval === '1h') mexcInterval = '60m';
       if (interval === '1d') mexcInterval = '1d';
 
-      const res = await fetch(`/api/mexc/api/v3/klines?symbol=${pair}&interval=${mexcInterval}&limit=120&_t=${Date.now()}`);
+      const res = await fetchWithFallback(`/api/v3/klines?symbol=${pair}&interval=${mexcInterval}&limit=120&_t=${Date.now()}`);
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         const raw = data.map(k => ({
@@ -408,7 +428,7 @@ async function loadCryptoDirect(symbol, interval = '1m') {
       // Poll for Live Candle via Proxy (every 2s)
       cryptoWsInterval = setInterval(async () => {
         try {
-          const res = await fetch(`/api/mexc/api/v3/klines?symbol=${pair}&interval=${mexcInterval}&limit=1&_t=${Date.now()}`);
+          const res = await fetchWithFallback(`/api/v3/klines?symbol=${pair}&interval=${mexcInterval}&limit=1&_t=${Date.now()}`);
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             const k = data[0];

@@ -42,14 +42,15 @@ class TradingController extends ChangeNotifier {
   }
 
   // == SANDBOX EXECUTION ENGINE ==
-  void executeSandboxTrade(String symbol, String direction, double entryPrice) {
-    final ticketId = "TRD-\${math.Random().nextInt(9999).toString().padLeft(4, '0')}";
+  void executeSandboxTrade(String symbol, String direction, double entryPrice, {double lotSize = 1.0}) {
+    final ticketId = "TRD-${math.Random().nextInt(9999).toString().padLeft(4, '0')}";
     activePositions.add({
       "id": ticketId,
       "symbol": symbol,
       "type": direction,
       "entry": entryPrice,
       "current": entryPrice, // Starts at entry
+      "lotSize": lotSize,
       "pnl": 0.0,            // Starts at $0
     });
     
@@ -71,6 +72,34 @@ class TradingController extends ChangeNotifier {
       _volatilityTimer = null;
     }
     notifyListeners();
+  }
+
+  void closePartialPosition(String id, double ratio) {
+    final idx = activePositions.indexWhere((pos) => pos['id'] == id);
+    if (idx != -1) {
+      final pos = activePositions[idx];
+      final currentLot = (pos['lotSize'] as num).toDouble();
+      final currentPnl = (pos['pnl'] as num).toDouble();
+      
+      final newLot = currentLot * (1 - ratio);
+      if (newLot <= 0.01) {
+        closePosition(id);
+      } else {
+        pos['lotSize'] = newLot;
+        pos['pnl'] = currentPnl * (1 - ratio);
+        pos['partialBanked'] = true;
+        notifyListeners();
+      }
+    }
+  }
+
+  void setBreakevenSL(String id) {
+    final idx = activePositions.indexWhere((pos) => pos['id'] == id);
+    if (idx != -1) {
+      activePositions[idx]['sl'] = activePositions[idx]['entry'];
+      activePositions[idx]['isBreakevenArmed'] = true;
+      notifyListeners();
+    }
   }
 
   void _startVolatilitySimulation() {
@@ -95,23 +124,37 @@ class TradingController extends ChangeNotifier {
   // ==============================
 
   Future<void> init() async {
-    final prefs = await SharedPreferences.getInstance();
-    _paperMode = prefs.getBool('paper') ?? true; // FIX H2: aligned key with SettingsService
-    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _paperMode = prefs.getBool('paper') ?? true;
+      notifyListeners();
+    } catch (e) {
+      debugPrint("TradingController: Failed to init SharedPreferences: $e");
+    }
   }
 
   Future<void> _loadLegalStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    legalAccepted = prefs.getBool('legal_accepted') ?? false;
-    _paperMode = prefs.getBool('paper') ?? true; // FIX H2: aligned key with SettingsService
-    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      legalAccepted = prefs.getBool('legal_accepted') ?? false;
+      _paperMode = prefs.getBool('paper') ?? true;
+      notifyListeners();
+    } catch (e) {
+      debugPrint("TradingController: Failed to load legal accepted status: $e");
+    }
   }
 
   Future<void> acceptLegal() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('legal_accepted', true);
-    legalAccepted = true;
-    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('legal_accepted', true);
+      legalAccepted = true;
+      notifyListeners();
+    } catch (e) {
+      debugPrint("TradingController: Failed to save accepted legal status: $e");
+      legalAccepted = true;
+      notifyListeners();
+    }
   }
 
   void togglePaperMode() {
@@ -241,7 +284,7 @@ class TradingController extends ChangeNotifier {
               Text('Lot Size: ${lotSize.toStringAsFixed(2)}', style: MehdAiTheme.labelStyle),
               Text('Consensus: ${consensus.consensusPercentage.toStringAsFixed(1)}%', style: MehdAiTheme.labelStyle),
               const SizedBox(height: 16),
-              Text('Risk: 1.0% maximum enforced by HardRiskKernel.', style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.gold)),
+              Text('Risk: ${riskPercent.toStringAsFixed(1)}% of \$${equity.toStringAsFixed(0)} equity — enforced by SentinelKernel.', style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.gold)),
             ],
           ),
           actions: [
@@ -325,7 +368,7 @@ class TradingController extends ChangeNotifier {
             final response = await _apiService.performAudit(auditData);
             if (response != null) onShowAudit(response);
           } catch (e) {
-            debugPrint("Audit failed: \$e");
+            debugPrint("Audit failed: $e");
           }
         });
       }

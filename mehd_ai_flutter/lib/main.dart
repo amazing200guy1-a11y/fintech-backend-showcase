@@ -23,6 +23,11 @@ import 'package:mehd_ai_flutter/services/payment_service.dart';
 import 'package:mehd_ai_flutter/services/broker_service.dart';
 import 'package:mehd_ai_flutter/services/nlg_engine.dart';
 import 'package:mehd_ai_flutter/widgets/inactivity_guard.dart';
+import 'package:mehd_ai_flutter/core/api_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,7 +50,7 @@ void main() async {
               const SizedBox(height: 20),
               Text(details.exceptionAsString(), style: const TextStyle(color: Colors.white, fontSize: 14)),
               const SizedBox(height: 20),
-              Text(details.stack.toString(), style: const TextStyle(color: Colors.white70, fontSize: 10)),
+              Text(details.stack?.toString() ?? 'No stack trace available.', style: const TextStyle(color: Colors.white70, fontSize: 10)),
             ],
           ),
         ),
@@ -55,11 +60,20 @@ void main() async {
 
   debugPrint("DEN_BOOT: Launching App...");
   
-  // Instant boot: Run App immediately with SharedPreferences
-  final prefs = await SharedPreferences.getInstance();
+  SharedPreferences prefs;
+  try {
+    prefs = await SharedPreferences.getInstance();
+  } catch (e) {
+    debugPrint("DEN_BOOT: SharedPreferences failed to initialize (potentially blocked in Incognito). Falling back to mock. Error: $e");
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  }
   
   // Non-blocking Firebase init
-  _initFirebaseAsync();
+  _initFirebaseAsync().catchError((e) {
+    debugPrint("DEN_BOOT: Background Firebase init error: $e");
+  });
 
   runApp(MehdAiApp(prefs: prefs));
 }
@@ -79,9 +93,81 @@ Future<void> _initFirebaseAsync() async {
       final token = await messaging.getToken();
       debugPrint("DEN_BOOT: FCM Token acquired: ${token?.substring(0, 10)}...");
 
-      // Foreground handler — routes to in-app notification banner
+      // Automatically subscribe to general broadcast alerts topic
+      await messaging.subscribeToTopic("broadcast_alerts");
+
+      // Dynamic backend registration: update token whenever user is authenticated
+      FirebaseAuth.instance.authStateChanges().listen((user) async {
+        try {
+          if (user != null) {
+            final currentToken = await messaging.getToken();
+            if (currentToken != null) {
+              final platform = kIsWeb
+                  ? 'web'
+                  : (defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android');
+              await ApiService().registerFcmToken(token: currentToken, platform: platform);
+            }
+          }
+        } catch (e) {
+          debugPrint("DEN_BOOT: Failed to register FCM token for user: $e");
+        }
+      });
+
+      // Foreground handler — routes to a premium in-app notification banner
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint("DEN_NOTIFY: ${message.notification?.title} — ${message.notification?.body}");
+        final context = navigatorKey.currentState?.overlay?.context;
+        if (context != null && context.mounted) {
+          // ignore: use_build_context_synchronously
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: const Color(0xFF0D0D0D),
+              duration: const Duration(seconds: 5),
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Color(0xFFFFD700), width: 1.5), // Golden border
+              ),
+              content: Row(
+                children: [
+                  const Icon(Icons.flash_on, color: Color(0xFFFFD700), size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          message.notification?.title ?? 'THE DON DECIDED',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          message.notification?.body ?? 'A new high-conviction signal is active.',
+                          style: const TextStyle(color: Colors.grey, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      });
+
+      // Background and Terminated state handlers for deep-linking
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        debugPrint("DEN_NOTIFY_TAP: App opened from notification: ${message.data}");
+        _handleNotificationRoute(message);
+      });
+
+      messaging.getInitialMessage().then((RemoteMessage? message) {
+        if (message != null) {
+          debugPrint("DEN_NOTIFY_BOOT_TAP: App booted from notification: ${message.data}");
+          _handleNotificationRoute(message);
+        }
       });
     } catch (e) {
       debugPrint("DEN_BOOT: FCM not configured — notifications disabled: $e");
@@ -89,6 +175,11 @@ Future<void> _initFirebaseAsync() async {
   } catch (e) {
     debugPrint("DEN_BOOT: Firebase bypassed or failed: $e");
   }
+}
+
+/// Route user to the main command center when they tap a push notification
+void _handleNotificationRoute(RemoteMessage message) {
+  navigatorKey.currentState?.pushNamedAndRemoveUntil('/home', (route) => false);
 }
 
 class MehdAiApp extends StatelessWidget {
@@ -111,15 +202,18 @@ class MehdAiApp extends StatelessWidget {
       child: Consumer2<LanguageService, ThemeProvider>(
         builder: (context, languageOpts, themeProvider, child) {
           return MaterialApp(
+            navigatorKey: navigatorKey,
             title: 'Mehd AI Terminal',
             theme: themeProvider.theme,
             debugShowCheckedModeBanner: false,
             locale: languageOpts.currentLocale,
-            localizationsDelegates: const [
+            localizationsDelegates: [
               AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
+              // GlobalCupertinoLocalizations causes a JS TypeError on Flutter web
+              // due to DDC deferred loading. Only include on native platforms.
+              if (!kIsWeb) GlobalCupertinoLocalizations.delegate,
             ],
             supportedLocales: const [
               Locale('en'),

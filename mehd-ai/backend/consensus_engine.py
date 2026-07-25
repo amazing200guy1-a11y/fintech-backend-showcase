@@ -57,6 +57,10 @@ from utils.chart_utils import (
 
 logger = logging.getLogger("mehd.consensus_engine")
 
+# Risk constants — must stay in sync with HardRiskKernel.MAX_DAILY_DRAWDOWN_PCT (3.0%)
+# Autopilot Sovereign Lock fires at 2/3 of the user kill-switch to give an early warning margin.
+AUTOPILOT_DRAWDOWN_LIMIT: float = 2.0   # = 3.0 * (2/3) — tighter than the manual 3% kill-switch
+
 # ──────────────────────────────────────────────
 #  Demo Mode Toggle
 # ──────────────────────────────────────────────
@@ -543,9 +547,9 @@ class AsyncCouncil:
                     proceed = False
                     rejection_reason = f"SOVEREIGN_LOCK: High-impact news in {news_minutes_away:.0f} minutes. Must be 30+ minutes clear."
                 
-                elif current_drawdown >= 2.0:
+                elif current_drawdown >= AUTOPILOT_DRAWDOWN_LIMIT:
                     proceed = False
-                    rejection_reason = f"SOVEREIGN_LOCK: Account drawdown {current_drawdown:.1f}% >= 2.0% daily limit."
+                    rejection_reason = f"SOVEREIGN_LOCK: Account drawdown {current_drawdown:.1f}% >= {AUTOPILOT_DRAWDOWN_LIMIT:.1f}% autopilot daily limit."
                 
                 elif current_atr > acceptable_atr_max:
                     proceed = False
@@ -758,6 +762,63 @@ class AsyncCouncil:
         """Fire models with individual timeouts, structured error handling."""
         async def _call_with_timeout(name: str):
             display_name = DEN_IDENTITY.get(name, {}).get("display_name", name.upper())
+            
+            # --- DEMO MODE: Simulated AI Agent Engine ---
+            if DEMO_MODE:
+                import random
+                # Use deterministic seeding based on symbol, current 5-min cycle block, and agent name
+                # so the agents align to form a clean consensus per cycle rather than chaotic noise.
+                minute = datetime.now(timezone.utc).minute
+                cycle_block = minute // 5
+                
+                # Determine overall consensus direction for this cycle
+                cycle_seed = hash(symbol) + cycle_block
+                random.seed(cycle_seed)
+                consensus_dir = random.choice([Direction.BUY, Direction.SELL])  # Favour active signals in demo
+                
+                # Setup agent specific variation
+                agent_seed = hash(symbol) + cycle_block + hash(name)
+                random.seed(agent_seed)
+                
+                # 85% chance agent agrees with cycle consensus direction, 15% chance it holds or flips
+                roll = random.random()
+                if roll < 0.85:
+                    agent_dir = consensus_dir
+                elif roll < 0.95:
+                    agent_dir = Direction.HOLD
+                else:
+                    agent_dir = Direction.SELL if consensus_dir == Direction.BUY else Direction.BUY
+                
+                confidence = random.uniform(70.0, 96.0) if agent_dir != Direction.HOLD else 50.0
+                
+                reasons = {
+                    Direction.BUY: [
+                        "Intraday H4 structural support holding strong. Liquidity pool swept successfully.",
+                        "Bullish moving average cross confirmed on 15m chart. Volume pressure building.",
+                        "Macro indicators turning positive. Relative strength index indicates room to run."
+                    ],
+                    Direction.SELL: [
+                        "Heavy resistance encountered near H1 order block. Exhaustion pattern detected.",
+                        "Overbought reading on multiple timeframes. High probability mean reversion pullback.",
+                        "Volume profile show distribution. Selling pressure mounting at liquidity highs."
+                    ],
+                    Direction.HOLD: [
+                        "Market consolidations ongoing in narrow range. Volatility compressed.",
+                        "Spread stable. Sideways structural bias makes breakouts unreliable.",
+                        "No clear momentum indicators detected. Recommending wait-and-see posture."
+                    ]
+                }
+                
+                reasoning = random.choice(reasons[agent_dir])
+                return AIVote(
+                    model_name=display_name,
+                    snapshot_id=snapshot.id,
+                    direction=agent_dir,
+                    confidence=round(confidence, 1),
+                    reasoning=f"[SIMULATED] {reasoning}",
+                )
+
+            # --- PRODUCTION MODE: Real API Orchestration ---
             fallback_vote = AIVote(
                 model_name=display_name,
                 snapshot_id=snapshot.id,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/core/constitution_service.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  The Holy Trinity Constitution
@@ -102,64 +104,25 @@ class _ConstitutionScreenState extends State<ConstitutionScreen>
   }
 
   Future<void> _updateRuleParameter(ConstitutionRule rule, double newParam) async {
-    // Optimistic update — show the change immediately
-    final updatedRules = _constitution.rules.map((r) {
-      if (r.id == rule.id) {
-        return ConstitutionRule(
-          id: r.id,
-          name: r.name,
-          description: r.description,
-          ruleType: r.ruleType,
-          parameter: newParam,
-          isActive: r.isActive,
-        );
-      }
-      return r;
-    }).toList();
-    setState(() {
-      _constitution = AppConstitution(
-        rules: updatedRules,
-        dailyTradesCount: _constitution.dailyTradesCount,
-        lastResetDate: _constitution.lastResetDate,
-      );
-    });
-
-    if (_isOffline) {
-      // Can't persist without backend — show friendly note
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Saved locally. Start the backend to sync your Constitution.',
-              style: TextStyle(color: Colors.black),
-            ),
-            backgroundColor: Color(0xFFD29922),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      return;
+    final settings = context.read<SettingsService>();
+    
+    // Sync directly to master SettingsService (persists local + cloud)
+    if (rule.ruleType == 'max_risk_per_trade') {
+      await settings.setRiskPerTrade(newParam);
+    } else if (rule.ruleType == 'max_daily_trades') {
+      await settings.setMaxDailyTrades(newParam.toInt());
+    } else if (rule.ruleType == 'min_consensus') {
+      await settings.setConvictionThreshold(newParam);
     }
 
-    // Persist to backend
-    try {
-      final saved = await _service.updateConstitution(
-        AppConstitution(
-          rules: updatedRules,
-          dailyTradesCount: _constitution.dailyTradesCount,
-          lastResetDate: _constitution.lastResetDate,
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✓ Constitution law updated & enforced across ecosystem.', style: TextStyle(color: Color(0xFF00FF88))),
+          backgroundColor: Color(0xFF020810),
+          duration: Duration(seconds: 2),
         ),
       );
-      if (mounted) setState(() => _constitution = saved);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Sync failed: $e'),
-            backgroundColor: MehdAiTheme.red,
-          ),
-        );
-      }
     }
   }
 
@@ -169,6 +132,34 @@ class _ConstitutionScreenState extends State<ConstitutionScreen>
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsService>();
+    final activeRules = [
+      ConstitutionRule(
+        id: 'trinity_1',
+        name: 'I. The Law of Position Size',
+        description: 'Never risk more than your configured percentage on a single trade. A trader who survives lives to compound. A trader who over-sizes dies broke.',
+        ruleType: 'max_risk_per_trade',
+        parameter: settings.riskPerTrade,
+        isActive: true,
+      ),
+      ConstitutionRule(
+        id: 'trinity_2',
+        name: 'II. The Law of Daily Discipline',
+        description: 'Maximum trades executed per trading day. After reaching this limit, The Den locks execution — protecting you from revenge trading and emotional spirals.',
+        ruleType: 'max_daily_trades',
+        parameter: settings.maxDailyTrades.toDouble(),
+        isActive: true,
+      ),
+      ConstitutionRule(
+        id: 'trinity_3',
+        name: 'III. The Law of Consensus',
+        description: 'All 11 AI agents inside The Den must reach this agreement threshold before a sniper fires. No consensus, no trade. Precision over frequency.',
+        ruleType: 'min_consensus',
+        parameter: settings.convictionThreshold,
+        isActive: true,
+      ),
+    ];
+
     return Scaffold(
       backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
@@ -193,34 +184,10 @@ class _ConstitutionScreenState extends State<ConstitutionScreen>
             ),
           ],
         ),
-        actions: [
-          if (_isLoadingFromServer)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: MehdAiTheme.blue,
-                ),
-              ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded,
-                  color: MehdAiTheme.textSecondary, size: 18),
-              onPressed: _loadConstitution,
-              tooltip: 'Sync with backend',
-            ),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         children: [
-          // Offline badge
-          if (_isOffline) _buildOfflineBadge(),
-
           // Header
           _buildHeader(),
           const SizedBox(height: 32),
@@ -230,8 +197,8 @@ class _ConstitutionScreenState extends State<ConstitutionScreen>
           const SizedBox(height: 32),
 
           // The Trinity Cards
-          ...List.generate(_constitution.rules.length, (i) {
-            return _buildTrinityCard(_constitution.rules[i], i);
+          ...List.generate(activeRules.length, (i) {
+            return _buildTrinityCard(activeRules[i], i);
           }),
 
           const SizedBox(height: 32),
@@ -674,7 +641,7 @@ class _ConstitutionScreenState extends State<ConstitutionScreen>
             ),
             const SizedBox(width: 24),
             Text(
-              value.toString(),
+              '$value',
               style: TextStyle(
                 color: accent,
                 fontSize: 36,

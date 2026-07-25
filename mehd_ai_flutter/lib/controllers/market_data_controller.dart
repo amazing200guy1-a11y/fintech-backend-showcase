@@ -72,6 +72,12 @@ class MarketDataController extends ChangeNotifier {
     _triggerAnalysis(symbol, onStatusMsg);
   }
 
+  /// Triggers a live 11-Agent Swarm scan on demand for the specified symbol (or activeSymbol).
+  void triggerSwarmAnalysis([String? symbol]) {
+    final sym = symbol ?? activeSymbol ?? 'EUR/USD';
+    _triggerAnalysis(sym, (_) {});
+  }
+
   void updatePriceFromChart(double price) {
     if (latestSnapshot == null) {
       latestSnapshot = MarketSnapshot(

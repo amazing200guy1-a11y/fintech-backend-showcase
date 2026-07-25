@@ -1622,5 +1622,1445 @@
       "votes": []
     },
     "failed_at": "2026-07-03T04:48:43.474212+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T22:52:11.260029+00:00",
+      "expires_at": "2026-07-13T22:52:11.260029+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.10) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T22:52:11.260029+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T22:52:12.060693+00:00",
+      "expires_at": "2026-07-13T22:52:12.060693+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T22:52:12.060693+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T22:52:12.086954+00:00",
+      "expires_at": "2026-07-13T22:52:12.086954+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.20) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T22:52:12.086954+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T22:52:12.803916+00:00",
+      "expires_at": "2026-07-13T22:52:12.803916+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T22:52:12.803916+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T22:57:11.192252+00:00",
+      "expires_at": "2026-07-13T22:57:11.192252+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.00) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T22:57:11.192760+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:07:12.472321+00:00",
+      "expires_at": "2026-07-13T23:07:12.472321+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:07:12.472321+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:22:11.218883+00:00",
+      "expires_at": "2026-07-13T23:22:11.218883+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.10) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:22:11.218883+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:22:12.679205+00:00",
+      "expires_at": "2026-07-13T23:22:12.679205+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:22:12.679205+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:27:12.424461+00:00",
+      "expires_at": "2026-07-13T23:27:12.424461+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:27:12.424461+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:37:12.203539+00:00",
+      "expires_at": "2026-07-13T23:37:12.203539+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:37:12.203539+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:37:13.261503+00:00",
+      "expires_at": "2026-07-13T23:37:13.261503+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:37:13.261503+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:42:12.199678+00:00",
+      "expires_at": "2026-07-13T23:42:12.199678+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:42:12.199678+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:47:11.177024+00:00",
+      "expires_at": "2026-07-13T23:47:11.177024+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.10) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:47:11.177024+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:52:11.150288+00:00",
+      "expires_at": "2026-07-13T23:52:11.150288+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.50) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:52:11.150288+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-12T23:57:11.154984+00:00",
+      "expires_at": "2026-07-13T23:57:11.154984+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.10) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-12T23:57:11.154984+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T00:07:11.192263+00:00",
+      "expires_at": "2026-07-14T00:07:11.192263+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.10) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T00:07:11.192263+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T00:12:12.435615+00:00",
+      "expires_at": "2026-07-14T00:12:12.435615+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T00:12:12.435615+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T00:42:11.158930+00:00",
+      "expires_at": "2026-07-14T00:42:11.158930+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.50) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T00:42:11.158930+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T00:42:12.331129+00:00",
+      "expires_at": "2026-07-14T00:42:12.331129+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T00:42:12.331129+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T01:07:12.153154+00:00",
+      "expires_at": "2026-07-14T01:07:12.153154+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T01:07:12.153154+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T01:12:11.156732+00:00",
+      "expires_at": "2026-07-14T01:12:11.156732+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.50) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T01:12:11.156732+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T01:32:12.440814+00:00",
+      "expires_at": "2026-07-14T01:32:12.440814+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T01:32:12.441461+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T01:37:12.340876+00:00",
+      "expires_at": "2026-07-14T01:37:12.340876+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T01:37:12.340876+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T01:42:12.323739+00:00",
+      "expires_at": "2026-07-14T01:42:12.323739+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T01:42:12.323739+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T01:42:12.364760+00:00",
+      "expires_at": "2026-07-14T01:42:12.364760+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.30) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T01:42:12.364760+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T01:47:11.192158+00:00",
+      "expires_at": "2026-07-14T01:47:11.192158+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.30) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T01:47:11.192158+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T02:02:15.901914+00:00",
+      "expires_at": "2026-07-14T02:02:15.901914+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.30) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T02:02:15.901914+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T02:17:16.922849+00:00",
+      "expires_at": "2026-07-14T02:17:16.922849+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T02:17:16.923457+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T02:17:18.373614+00:00",
+      "expires_at": "2026-07-14T02:17:18.373614+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T02:17:18.373614+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T02:32:17.122414+00:00",
+      "expires_at": "2026-07-14T02:32:17.122414+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T02:32:17.122414+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T02:42:15.947687+00:00",
+      "expires_at": "2026-07-14T02:42:15.947687+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.10) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T02:42:15.947687+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T02:47:17.032287+00:00",
+      "expires_at": "2026-07-14T02:47:17.032287+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T02:47:17.032287+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T02:57:15.969257+00:00",
+      "expires_at": "2026-07-14T02:57:15.969257+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.20) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T02:57:15.969257+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T03:07:16.015669+00:00",
+      "expires_at": "2026-07-14T03:07:16.015669+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.20) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T03:07:16.015669+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T03:22:15.986783+00:00",
+      "expires_at": "2026-07-14T03:22:15.986783+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.20) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T03:22:15.986783+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T03:27:17.091819+00:00",
+      "expires_at": "2026-07-14T03:27:17.091819+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T03:27:17.091819+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T03:32:17.017211+00:00",
+      "expires_at": "2026-07-14T03:32:17.017211+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T03:32:17.017211+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T03:37:16.027649+00:00",
+      "expires_at": "2026-07-14T03:37:16.027649+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.40) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T03:37:16.027649+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T04:02:16.098244+00:00",
+      "expires_at": "2026-07-14T04:02:16.098244+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.00) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T04:02:16.098244+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-13T04:07:16.056109+00:00",
+      "expires_at": "2026-07-14T04:07:16.056109+00:00",
+      "session_id": "0c2fa98a-3bf5-4cba-806b-4417b907a136",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.80) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-13T04:07:16.056109+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T15:43:36.375811+00:00",
+      "expires_at": "2026-07-15T15:43:36.375811+00:00",
+      "session_id": "79cbe75a-d1f8-4bae-9393-00869530295e",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.20) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T15:43:36.375811+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T15:43:37.238933+00:00",
+      "expires_at": "2026-07-15T15:43:37.238933+00:00",
+      "session_id": "79cbe75a-d1f8-4bae-9393-00869530295e",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T15:43:37.238933+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T15:43:37.267309+00:00",
+      "expires_at": "2026-07-15T15:43:37.267309+00:00",
+      "session_id": "79cbe75a-d1f8-4bae-9393-00869530295e",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.00) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T15:43:37.267849+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T15:43:38.003653+00:00",
+      "expires_at": "2026-07-15T15:43:38.003653+00:00",
+      "session_id": "79cbe75a-d1f8-4bae-9393-00869530295e",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T15:43:38.003653+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T15:48:36.317115+00:00",
+      "expires_at": "2026-07-15T15:48:36.317115+00:00",
+      "session_id": "79cbe75a-d1f8-4bae-9393-00869530295e",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.90) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T15:48:36.317115+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T15:48:37.116377+00:00",
+      "expires_at": "2026-07-15T15:48:37.116377+00:00",
+      "session_id": "79cbe75a-d1f8-4bae-9393-00869530295e",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T15:48:37.116377+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T15:58:36.361376+00:00",
+      "expires_at": "2026-07-15T15:58:36.361376+00:00",
+      "session_id": "79cbe75a-d1f8-4bae-9393-00869530295e",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.90) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T15:58:36.361376+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T17:53:19.621795+00:00",
+      "expires_at": "2026-07-15T17:53:19.621795+00:00",
+      "session_id": "c670ee55-c0e6-4896-b919-b95347dad00b",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.00) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T17:53:19.621795+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T17:53:20.306782+00:00",
+      "expires_at": "2026-07-15T17:53:20.306782+00:00",
+      "session_id": "c670ee55-c0e6-4896-b919-b95347dad00b",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T17:53:20.306782+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T17:53:20.339365+00:00",
+      "expires_at": "2026-07-15T17:53:20.339365+00:00",
+      "session_id": "c670ee55-c0e6-4896-b919-b95347dad00b",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.10) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T17:53:20.339365+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T17:53:21.095458+00:00",
+      "expires_at": "2026-07-15T17:53:21.095458+00:00",
+      "session_id": "c670ee55-c0e6-4896-b919-b95347dad00b",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T17:53:21.095458+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T17:58:19.615561+00:00",
+      "expires_at": "2026-07-15T17:58:19.615561+00:00",
+      "session_id": "c670ee55-c0e6-4896-b919-b95347dad00b",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.50) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T17:58:19.615561+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:03:20.066914+00:00",
+      "expires_at": "2026-07-15T18:03:20.066914+00:00",
+      "session_id": "c670ee55-c0e6-4896-b919-b95347dad00b",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:03:20.066914+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:03:20.085131+00:00",
+      "expires_at": "2026-07-15T18:03:20.085131+00:00",
+      "session_id": "c670ee55-c0e6-4896-b919-b95347dad00b",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.10) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:03:20.085131+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:08:19.641855+00:00",
+      "expires_at": "2026-07-15T18:08:19.641855+00:00",
+      "session_id": "c670ee55-c0e6-4896-b919-b95347dad00b",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.00) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:08:19.641855+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:21:42.631242+00:00",
+      "expires_at": "2026-07-15T18:21:42.631242+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.10) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:21:42.631242+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:21:43.116544+00:00",
+      "expires_at": "2026-07-15T18:21:43.116544+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:21:43.116544+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:21:43.138366+00:00",
+      "expires_at": "2026-07-15T18:21:43.138366+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.90) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:21:43.138366+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:21:43.578543+00:00",
+      "expires_at": "2026-07-15T18:21:43.578543+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:21:43.578543+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:26:43.004921+00:00",
+      "expires_at": "2026-07-15T18:26:43.004921+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:26:43.004921+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:31:43.033680+00:00",
+      "expires_at": "2026-07-15T18:31:43.033680+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:31:43.033680+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:36:42.586478+00:00",
+      "expires_at": "2026-07-15T18:36:42.586478+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.20) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:36:42.586478+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:51:42.984318+00:00",
+      "expires_at": "2026-07-15T18:51:42.984318+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:51:42.984318+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T18:56:42.605117+00:00",
+      "expires_at": "2026-07-15T18:56:42.605117+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.10) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T18:56:42.605117+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:11:43.094926+00:00",
+      "expires_at": "2026-07-15T19:11:43.094926+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:11:43.094926+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:16:42.631030+00:00",
+      "expires_at": "2026-07-15T19:16:42.631030+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.50) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:16:42.631030+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:26:42.618753+00:00",
+      "expires_at": "2026-07-15T19:26:42.618753+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.10) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:26:42.618753+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:31:43.171814+00:00",
+      "expires_at": "2026-07-15T19:31:43.171814+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:31:43.171814+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:41:42.627956+00:00",
+      "expires_at": "2026-07-15T19:41:42.627956+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.00) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:41:42.627956+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:41:43.090290+00:00",
+      "expires_at": "2026-07-15T19:41:43.090290+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:41:43.090290+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:46:42.641067+00:00",
+      "expires_at": "2026-07-15T19:46:42.641067+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.90) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:46:42.641067+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:56:42.677981+00:00",
+      "expires_at": "2026-07-15T19:56:42.677981+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.50) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:56:42.678555+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T19:56:43.161786+00:00",
+      "expires_at": "2026-07-15T19:56:43.161786+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T19:56:43.161786+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T20:01:42.683090+00:00",
+      "expires_at": "2026-07-15T20:01:42.683090+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.00) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T20:01:42.683090+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T20:06:42.655784+00:00",
+      "expires_at": "2026-07-15T20:06:42.655784+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "EUR/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.70) exceeds 50% of bid (1.08500) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T20:06:42.655784+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T20:06:43.142224+00:00",
+      "expires_at": "2026-07-15T20:06:43.142224+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T20:06:43.142224+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T20:21:42.731737+00:00",
+      "expires_at": "2026-07-15T20:21:42.731737+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (1.00) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T20:21:42.731737+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T20:46:43.335021+00:00",
+      "expires_at": "2026-07-15T20:46:43.335021+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T20:46:43.335021+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T20:51:42.741204+00:00",
+      "expires_at": "2026-07-15T20:51:42.741204+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.10) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T20:51:42.741204+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T20:51:43.240691+00:00",
+      "expires_at": "2026-07-15T20:51:43.240691+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T20:51:43.240691+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T20:56:43.643028+00:00",
+      "expires_at": "2026-07-15T20:56:43.643028+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T20:56:43.643028+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:01:43.195463+00:00",
+      "expires_at": "2026-07-15T21:01:43.195463+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:01:43.195463+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:06:43.225260+00:00",
+      "expires_at": "2026-07-15T21:06:43.225260+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:06:43.225260+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:11:43.193619+00:00",
+      "expires_at": "2026-07-15T21:11:43.193619+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:11:43.193619+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:11:43.654671+00:00",
+      "expires_at": "2026-07-15T21:11:43.654671+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:11:43.654671+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:16:43.204406+00:00",
+      "expires_at": "2026-07-15T21:16:43.204406+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:16:43.204406+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:21:42.780665+00:00",
+      "expires_at": "2026-07-15T21:21:42.780665+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "NAS100",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "CORRUPT_DATA: Market snapshot failed validation \u2014 Spread (2.50) exceeds 50% of bid (1.00000) \u2014 abnormal market conditions",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:21:42.780665+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:31:43.231295+00:00",
+      "expires_at": "2026-07-15T21:31:43.231295+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:31:43.231295+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:46:44.202840+00:00",
+      "expires_at": "2026-07-15T21:46:44.202840+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "BTC/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:46:44.202840+00:00"
+  },
+  {
+    "target_collection": "consensus_logs",
+    "document": {
+      "timestamp": "2026-07-14T21:46:45.628231+00:00",
+      "expires_at": "2026-07-15T21:46:45.628231+00:00",
+      "session_id": "71aeb912-9e11-4885-8b39-1a340e5cbabc",
+      "model_versions": [],
+      "symbol": "XAU/USD",
+      "final_direction": "HOLD",
+      "consensus_percentage": 0.0,
+      "proceed": false,
+      "rejection_reason": "ALL_LAYERS_FAILED",
+      "votes": []
+    },
+    "failed_at": "2026-07-14T21:46:45.628231+00:00"
   }
 ]

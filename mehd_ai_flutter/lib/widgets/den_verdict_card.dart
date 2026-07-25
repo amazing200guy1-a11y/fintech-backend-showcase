@@ -91,7 +91,7 @@ class DenVerdictCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   proceed 
-                      ? 'CONSENSUS-VERIFIED — STRIKE NOW' 
+                      ? '24/5 AUTONOMOUS SIGNAL VERIFIED' 
                       : 'HARD FREEZE — ${consensus.rejectionReason?.toUpperCase() ?? "SYSTEM LOCKED"}',
                   style: MehdAiTheme.headingStyle.copyWith(
                     fontSize: 20,

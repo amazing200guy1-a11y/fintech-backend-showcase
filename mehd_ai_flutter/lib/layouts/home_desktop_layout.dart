@@ -24,6 +24,7 @@ import 'package:mehd_ai_flutter/screens/den/network_screen.dart';
 import 'package:mehd_ai_flutter/screens/data_moat_screen.dart';
 import 'package:mehd_ai_flutter/screens/settings_screen.dart';
 import 'package:mehd_ai_flutter/screens/scoreboard_screen.dart';
+import 'package:mehd_ai_flutter/screens/journey_screen.dart';
 
 class HomeDesktopLayout extends StatefulWidget {
   final TradingController trading;
@@ -84,6 +85,7 @@ class _HomeDesktopLayoutState extends State<HomeDesktopLayout> {
   // 11 = Data Moat
   // 12 = Brokers (Broker Shield)
   // 13 = Settings
+  // 14 = Journey
 
   @override
   Widget build(BuildContext context) {
@@ -274,6 +276,9 @@ class _HomeDesktopLayoutState extends State<HomeDesktopLayout> {
       case 13:
         // SETTINGS
         return const SettingsScreen();
+      case 14:
+        // JOURNEY
+        return const JourneyScreen();
       default:
         return WarRoomScreen(
           isAnalyzing: widget.market.isAnalyzing,

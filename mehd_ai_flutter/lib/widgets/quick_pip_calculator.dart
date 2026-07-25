@@ -90,7 +90,7 @@ class _QuickPipCalculatorState extends State<QuickPipCalculator> {
           Text('Max 20% cap: \$${maxRiskAmount.toInt()} of \$${accountBalance.toInt()} balance', style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.yellow, fontSize: 9), overflow: TextOverflow.ellipsis),
           Text('Stop Loss (Pips)', style: MehdAiTheme.labelStyle, overflow: TextOverflow.ellipsis),
           Slider(
-            value: _localStopLossPips,
+            value: _localStopLossPips.clamp(5, 100),
             min: 5,
             max: 100,
             divisions: 95,
