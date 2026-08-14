@@ -135,6 +135,6 @@ The system supports high-liquidity assets accounting for over **85% of global ma
 
 ## 📄 License & Attribution
 
-Architected & Developed by **Osman** (Backend, Cloud & Quantitative Systems Engineer).
+Architected & Developed by **Usman** (Backend, Cloud & Quantitative Systems Engineer).
 
 *Protected under proprietary trade secret guidelines. All rights reserved.*
