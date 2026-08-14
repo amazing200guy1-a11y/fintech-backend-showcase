@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/models/consensus_result.dart';
 
@@ -19,25 +18,20 @@ class DenVerdictCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final proceed = consensus.proceed;
     final primaryColor = proceed ? MehdAiTheme.green : MehdAiTheme.red;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
+    return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
-        color: const Color(0xFF58A6FF).withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFF161B22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: primaryColor.withOpacity(0.3),
-          width: 0.5,
+          color: const Color(0xFF21262D),
+          width: 1,
         ),
-        boxShadow: proceed
-            ? [BoxShadow(color: primaryColor.withOpacity(0.15), blurRadius: 30, spreadRadius: 4)]
-            : [],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 8)),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -45,23 +39,40 @@ class DenVerdictCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: primaryColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'SWARM VERDICT AUDIT',
+                    style: MehdAiTheme.headingStyle.copyWith(letterSpacing: 2, color: Colors.white, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: primaryColor.withOpacity(0.3)),
+                ),
                 child: Text(
-                  'THE DEN HAS SPOKEN',
-                  style: MehdAiTheme.headingStyle.copyWith(letterSpacing: 2, color: Colors.white),
-                  overflow: TextOverflow.ellipsis,
+                  proceed ? 'VERIFIED' : 'VETOED',
+                  style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
                 ),
               ),
-              const Icon(Icons.shield, color: MehdAiTheme.gold, size: 20),
             ],
           ),
-          Text(
-            'Den Analysis™',
-            style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.gold),
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 24),
-          const Divider(height: 1, color: MehdAiTheme.borderColor),
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: Color(0xFF21262D)),
           const SizedBox(height: 16),
           
           _buildLayerStatus('THE RESEARCH', ['grok', 'perplexity', 'gemini']),
@@ -71,31 +82,33 @@ class DenVerdictCard extends StatelessWidget {
           _buildLayerStatus('OLYMPUS', ['deepseek', 'openai-o3', 'codestral']),
 
           const SizedBox(height: 16),
-          const Divider(height: 1, color: MehdAiTheme.borderColor),
+          const Divider(height: 1, color: Color(0xFF21262D)),
           const SizedBox(height: 16),
 
           _buildFinalChecks(),
 
           const SizedBox(height: 16),
-          const Divider(height: 1, color: MehdAiTheme.borderColor),
-          const SizedBox(height: 24),
+          const Divider(height: 1, color: Color(0xFF21262D)),
+          const SizedBox(height: 20),
 
           Row(
             children: [
               Icon(
-                proceed ? Icons.check_circle : Icons.warning_rounded,
+                proceed ? Icons.check_circle_rounded : Icons.cancel_rounded,
                 color: primaryColor,
-                size: 24,
+                size: 20,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   proceed 
                       ? '24/5 AUTONOMOUS SIGNAL VERIFIED' 
                       : 'HARD FREEZE — ${consensus.rejectionReason?.toUpperCase() ?? "SYSTEM LOCKED"}',
                   style: MehdAiTheme.headingStyle.copyWith(
-                    fontSize: 20,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
                     color: primaryColor,
+                    letterSpacing: 0.5,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -103,8 +116,6 @@ class DenVerdictCard extends StatelessWidget {
             ],
           ),
         ],
-      ),
-        ),
       ),
     );
   }

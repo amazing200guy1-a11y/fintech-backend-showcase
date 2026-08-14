@@ -51,114 +51,13 @@ from secretary import secretary
 logger = logging.getLogger("mehd.broadcaster")
 
 
-def _safe_create_task(coro, name: str = "unnamed"):
-    """Fire-and-forget wrapper that logs errors instead of silently swallowing them."""
-    async def _wrapper():
-        try:
-            await coro
-        except Exception as e:
-            logger.error("Background task '%s' failed: %s", name, e)
-    return asyncio.create_task(_wrapper())
-
-
-# ──────────────────────────────────────────────
-#  Configuration
-# ──────────────────────────────────────────────
-
-# Pairs the Broadcaster monitors — synced with Flutter's AppConstants.symbols
-# HARDENED (VULN-13): These MUST match what the Flutter client shows.
-# If a pair is here but not in Flutter, it wastes API calls.
-# If a pair is in Flutter but not here, users see "No broadcast yet."
-BROADCAST_PAIRS = [
-    # Core 6 Major Assets: Forex Majors, Commodity, and Institutional Liquidity
-    "EUR/USD", "GBP/USD", "AUD/USD", "USD/JPY", "USD/CAD", "XAU/USD",
-]
-
-# How long to wait between full cycles (seconds)
-# 300 = 5 minutes. The Den re-analyzes every pair every 5 minutes.
-CYCLE_INTERVAL_SECONDS = 300
-
-# Minimum seconds between analyses of the SAME pair
-# Prevents hammering APIs if a cycle runs fast
-MIN_PAIR_INTERVAL_SECONDS = 30
-
-# How many historical broadcasts to keep per pair
-BROADCAST_HISTORY_SIZE = 50
-
-# Delay for free-tier users (seconds)
-FREE_TIER_DELAY_SECONDS = 900  # 15 minutes
-
-
-# ──────────────────────────────────────────────
-#  Broadcast Signal — one consensus result
-# ──────────────────────────────────────────────
-
-@dataclass
-class BroadcastSignal:
-    """A single broadcast: one pair, one consensus, one moment in time."""
-    symbol: str
-    consensus: ConsensusResult
-    snapshot: MarketSnapshot
-    broadcast_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    cycle_id: int = 0
-    analysis_duration_ms: int = 0
-    status: str = "FRESH"
-
-    def to_notification(self) -> dict:
-        """
-        Converts to a push notification payload.
-        This is what users receive on their phone.
-        """
-        direction = self.consensus.final_direction.value
-        pct = self.consensus.consensus_percentage
-        emoji = "🟢" if direction == "BUY" else "🔴" if direction == "SELL" else "⚪"
-
-        # Only push if consensus is strong enough to be actionable (standardized at 92%)
-        if pct < 92:
-            return None  # Don't spam users with weak signals
-
-        return {
-            "title": f"{emoji} {self.symbol} — {direction} Signal",
-            "body": (
-                f"The Den reached {pct:.0f}% consensus. "
-                f"11 AI agents analyzed the market."
-            ),
-            "data": {
-                "symbol": self.symbol,
-                "direction": direction,
-                "consensus_pct": pct,
-                "proceed": self.consensus.proceed,
-                "timestamp": self.broadcast_time.isoformat(),
-                "cycle_id": self.cycle_id,
-                "chairman_summary": self.consensus.chairman_summary or "",
-            },
-        }
-
-    def to_dict(self) -> dict:
-        """Serializable summary for API responses."""
-        import json
-        return {
-            "symbol": self.symbol,
-            "direction": self.consensus.final_direction.value,
-            "consensus_pct": self.consensus.consensus_percentage,
-            "proceed": self.consensus.proceed,
-            "chairman_summary": self.consensus.chairman_summary,
-            "rejection_reason": self.consensus.rejection_reason,
-            "vote_count": len(self.consensus.votes),
-            "consensus_data": json.loads(self.consensus.model_dump_json()),
-            "snapshot": {
-                "bid": self.snapshot.bid,
-                "ask": self.snapshot.ask,
-                "spread": self.snapshot.spread,
-                "data_source": self.snapshot.data_source,
-                "is_live": self.snapshot.is_live,
-            },
-            "broadcast_time": self.broadcast_time.isoformat(),
-            "analysis_duration_ms": self.analysis_duration_ms,
-            "cycle_id": self.cycle_id,
-            "status": self.status, # Signal Lifecycle Phase
-        }
-
+from broadcast_lifecycle import run_lifecycle_manager_loop, run_delayed_pusher_loop
+from broadcast_signal import (
+    BroadcastSignal, _safe_create_task, BROADCAST_PAIRS,
+    CYCLE_INTERVAL_SECONDS, MIN_PAIR_INTERVAL_SECONDS,
+    BROADCAST_HISTORY_SIZE, FREE_TIER_DELAY_SECONDS,
+)
+from redis_pubsub import redis_bridge
 
 # ──────────────────────────────────────────────
 #  The Broadcaster Engine
@@ -185,9 +84,11 @@ class Broadcaster:
             for pair in BROADCAST_PAIRS
         }
 
-        # Subscriptions using Condition instead of Queues for O(1) memory scaling (Google Lesson)
+        # Subscriptions using Condition and Bounded Memory Queues (Zero slow-client blocking)
         self._live_condition: asyncio.Condition = asyncio.Condition()
         self._delayed_condition: asyncio.Condition = asyncio.Condition()
+        self._live_queues: set[asyncio.Queue[Any]] = set()
+        self._delayed_queues: set[asyncio.Queue[Any]] = set()
         self._latest_live_msg: Optional[BroadcastSignal] = None
         self._latest_delayed_msg: Optional[BroadcastSignal] = None
         self._total_delayed_broadcasts: int = 0
@@ -211,18 +112,23 @@ class Broadcaster:
     # ──────────────────────────────────────────
 
     async def start(self) -> None:
-        """Start the background daemon."""
+        """Start the background daemon and initialize Redis Pub/Sub bridge."""
         if self._running:
             logger.warning("Broadcaster already running.")
             return
 
         self._running = True
         self._started_at = datetime.now(timezone.utc)
+
+        # Initialize multi-worker Redis bridge (falls back to in-memory if Redis absent)
+        await redis_bridge.initialize()
+        await redis_bridge.subscribe("mehd:broadcast:signals", self._on_remote_broadcast)
+
         self._task = asyncio.create_task(self._daemon_loop())
         self._lifecycle_task = asyncio.create_task(self._lifecycle_manager_loop())
         self._delayed_task = asyncio.create_task(self._delayed_pusher_loop())
         logger.info(
-            "🔊 BROADCASTER STARTED — Monitoring %d pairs, cycle every %ds",
+            "🔊 BROADCASTER STARTED — Monitoring %d pairs, cycle every %ds (PubSub active)",
             len(BROADCAST_PAIRS),
             CYCLE_INTERVAL_SECONDS,
         )
@@ -368,175 +274,49 @@ class Broadcaster:
                     await asyncio.sleep(remaining_wait)
 
     async def _analyze_and_broadcast(self, symbol: str) -> None:
-        """Run the full Den analysis on one pair and broadcast the result."""
-        from state import den_engine, streamer, audit
+        from broadcast_analyzer import run_analyze_and_broadcast
+        await run_analyze_and_broadcast(self, symbol)
 
-        async def _safe_store(sig_id: str, data: dict):
-            try:
-                await storage.set("broadcast_history", sig_id, data)
-            except Exception as e:
-                logger.error("CRITICAL: Signal %s lost — Firestore write failed: %s", sig_id, e)
-
-        try:
-            start_time = time.time()
-
-            # 1. Get live snapshot
-            snapshot = streamer.get_latest_snapshot(symbol)
-
-            # ── Pillar 2: THE SECRETARY (Market Noise Filter) ──
-            cached_signal = self._latest.get(symbol)
-            last_snapshot = cached_signal.snapshot if cached_signal else None
-            
-            should_wake, reason, briefing = secretary.analyze_market_tick(
-                symbol, snapshot, last_snapshot
-            )
-
-            if cached_signal and not should_wake:
-                age_mins = (datetime.now(timezone.utc) - cached_signal.broadcast_time).total_seconds() / 60
-                if age_mins < 15.0:  # Keep cache for up to 15 mins if market is flat
-                    logger.info("SECRETARY (%s): %s — Skipping analysis.", symbol, reason)
-                    # Update cycle ID and snapshot, but keep same consensus
-                    cached_signal.snapshot = snapshot
-                    cached_signal.cycle_id = self._cycle_count
-                    cached_signal.broadcast_time = datetime.now(timezone.utc)
-                    cached_signal.analysis_duration_ms = 0
-                    
-                    await self._push_to_subscribers(cached_signal)
-                    self._total_broadcasts += 1
-                    self._last_pair_time[symbol] = time.time()
-                    return
-            
-            logger.info("SECRETARY (%s): Waking 11 agents. Reason: %s", symbol, reason)
-            # Log the briefing template the agents will receive
-            logger.debug("Briefing sent to agents:\n%s", briefing)
-            
-            # ATTACH the briefing to the snapshot so agents can read it
-            snapshot.briefing = briefing
-
-            # 2. Run the FULL 11-agent consensus
-            # This is the "slow" part — but nobody is waiting.
-            # It runs in the background while users do other things.
-            # We wrap this in a strict timeout so a stuck API never halts the Clock.
-            try:
-                result = await asyncio.wait_for(
-                    den_engine.analyze(
-                        symbol,
-                        snapshot,
-                        tier="institutional",  # Highest active tier — full precision consensus
-                        current_drawdown=0.0,  # Global analysis, not per-user
-                    ),
-                    timeout=60.0
-                )
-            except asyncio.TimeoutError:
-                logger.error("Analysis for %s TIMED OUT after 60 seconds. Skipping pair to prevent clock freeze.", symbol)
-                self._errors_this_cycle += 1
-                return
-
-            duration_ms = int((time.time() - start_time) * 1000)
-
-            # Generate AI Drawing Commands for chart overlay
-            try:
-                mock_candles = generate_mock_candles(snapshot.close)
-                result.drawings = generate_drawing_commands(symbol, result, mock_candles)
-            except Exception as draw_err:
-                logger.warning("Failed to generate drawing commands for %s: %s", symbol, draw_err)
-                result.drawings = []
-
-            # 3. Create the broadcast signal
-            signal = BroadcastSignal(
-                symbol=symbol,
-                consensus=result,
-                snapshot=snapshot,
-                cycle_id=self._cycle_count,
-                analysis_duration_ms=duration_ms,
-            )
-
-            # 4. Store it locally (memory)
-            self._latest[symbol] = signal
-            self._history[symbol].append(signal)
-            self._last_pair_time[symbol] = time.time()
-            self._total_broadcasts += 1
-
-            # 4b. Store it persistently for Signal Lifecycle / Missed Signals UI
-            signal_id = f"{symbol.replace('/', '_')}_{int(start_time * 1000)}"
-            signal_data = signal.to_dict()
-            signal_data["signal_id"] = signal_id
-            # TTL: broadcast signals auto-delete after 24 hours
-            signal_data["expires_at"] = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
-            
-            # Fire-and-forget async save with error handling
-            _safe_create_task(_safe_store(signal_id, signal_data), name=f"persist_{signal_id}")
-
-            # 4c. Invalidate previous signals for this pair if direction changed
-            _safe_create_task(self._invalidate_previous_signals(symbol, result.final_direction.value), name=f"invalidate_{symbol}")
-
-            # 4d. AUTOPILOT DROP: If signal >= 92%, alert the Auto-Execution Worker
-            if result.consensus_percentage >= 92 and result.proceed:
-                auto_exec_data = signal_data.copy()
-                auto_exec_data["status"] = "PENDING_EXECUTION"
-                # HARDENED: Include vote data so worker can check OLYMPUS anomaly flags
-                auto_exec_data["votes"] = [
-                    {
-                        "model_name": v.model_name,
-                        "direction": v.direction.value,
-                        "confidence": v.confidence,
-                        "reasoning": v.reasoning,
-                        "layer": self._get_agent_layer(v.model_name),
-                    }
-                    for v in result.votes
-                ]
-                # HARDENED: Include live price data for SL/TP calculation
-                auto_exec_data["current_price"] = snapshot.bid
-                auto_exec_data["spread"] = snapshot.spread
-                auto_exec_data["expires_at"] = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
-                _safe_create_task(storage.set("pending_auto_executions", signal_id, auto_exec_data), name=f"autopilot_drop_{signal_id}")
-
-            # 4e. REJECTION FEED DROP: If the AI blocks a trade, push to the Rejection Feed
-            if result.consensus_percentage < 80 or not result.proceed:
-                rejection_data = signal_data.copy()
-                rejection_data["rejection_time"] = datetime.now(timezone.utc).isoformat()
-                rejection_data["expires_at"] = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
-                rejection_data["rejection_reason"] = result.rejection_reason or "Insufficient consensus to guarantee safety."
-                _safe_create_task(storage.set("rejection_feed", signal_id, rejection_data), name=f"reject_drop_{signal_id}")
-
-            # 5. Push to SSE subscribers
-            await self._push_to_subscribers(signal)
-
-            # 6. Send push notification if signal is strong
-            notification = signal.to_notification()
-            if notification and self._notification_callback:
-                try:
-                    await self._notification_callback(notification)
-                except Exception as e:
-                    logger.error("Notification callback failed: %s", e)
-
-            # 7. Log to audit trail
-            audit.log_consensus(symbol, result)
-
-            logger.info(
-                "📡 BROADCAST: %s → %s (%.0f%%) in %dms | proceed=%s",
-                symbol,
-                result.final_direction.value,
-                result.consensus_percentage,
-                duration_ms,
-                result.proceed,
-            )
-
-        except Exception as e:
-            self._errors_this_cycle += 1
-            logger.error(
-                "Broadcast FAILED for %s: %s", symbol, e, exc_info=True
-            )
-
-    # ──────────────────────────────────────────
-    #  SSE Push (Real-Time Subscribers)
     # ──────────────────────────────────────────
 
     async def _push_to_subscribers(self, signal: BroadcastSignal) -> None:
-        """Push a new signal to all connected SSE subscribers via Condition."""
+        """
+        Push a new signal to all connected SSE subscribers.
+        1. Fast Redis fan-out for multi-worker processes.
+        2. Non-blocking drop (<0.05ms) into local per-client queues via put_nowait().
+        3. Backward-compatible Condition notify.
+        """
+        # 1. Multi-worker Pub/Sub
+        signal_dict = signal.to_dict()
+        _safe_create_task(redis_bridge.publish("mehd:broadcast:signals", signal_dict), name="redis_publish")
+
+        # 2. Local bounded queue delivery
+        self._deliver_to_queues(self._live_queues, signal)
+
+        # 3. Legacy Condition support
         async with self._live_condition:
             self._latest_live_msg = signal
             self._live_condition.notify_all()
+
+    def _on_remote_broadcast(self, payload: dict) -> None:
+        """Called when another worker process publishes a broadcast signal via Redis."""
+        self._deliver_to_queues(self._live_queues, payload)
+
+    def _deliver_to_queues(self, queue_set: set[asyncio.Queue], item: Any) -> None:
+        """Drops message into queues using put_nowait(). Drops oldest on full (Slow-Client Protection)."""
+        dead_queues = []
+        for q in list(queue_set):
+            try:
+                if q.full():
+                    try:
+                        q.get_nowait()
+                    except (asyncio.QueueEmpty, Exception):
+                        pass
+                q.put_nowait(item)
+            except Exception:
+                dead_queues.append(q)
+        for dq in dead_queues:
+            queue_set.discard(dq)
 
     # ──────────────────────────────────────────
     #  Lifecycle Manager
@@ -558,55 +338,8 @@ class Broadcaster:
             logger.error("Failed to invalidate previous signals for %s: %s", symbol, e)
 
     async def _lifecycle_manager_loop(self) -> None:
-        """Periodically ages signals in Firestore (FRESH -> ACTIVE -> STALE -> EXPIRED)"""
-        await asyncio.sleep(10) # wait a bit before first run
-        
-        while self._running:
-            try:
-                now = datetime.now(timezone.utc)
-                
-                # FIX H2: Use query() instead of get_all() — only fetch signals that
-                # are still alive (FRESH/ACTIVE/STALE). Skip EXPIRED and INVALIDATED
-                # since they don't need aging. This cuts Firestore reads by 90%+.
-                live_signals = await storage.query("broadcast_history", [
-                    ("status", "in", ["FRESH", "ACTIVE", "STALE"]),
-                ])
-                
-                updated_count = 0
-                for sig_id, sig_data in live_signals.items():
-                    bt_str = sig_data.get("broadcast_time")
-                    status = sig_data.get("status", "FRESH")
-                    
-                    if not bt_str:
-                        continue
-                    
-                    try:
-                        bt = datetime.fromisoformat(bt_str)
-                    except ValueError:
-                        continue
-                        
-                    age_mins = (now - bt).total_seconds() / 60
-                    
-                    new_status = status
-                    if age_mins > 240: # 4 hours
-                        new_status = "EXPIRED"
-                    elif age_mins > 30: # 30 mins
-                        new_status = "STALE"
-                    elif age_mins > 5: # 5 mins
-                        new_status = "ACTIVE"
-                        
-                    if new_status != status:
-                        sig_data["status"] = new_status
-                        await storage.set("broadcast_history", sig_id, sig_data)
-                        updated_count += 1
-                
-                if updated_count > 0:
-                    logger.info("♻️ Lifecycle Manager updated %d signals", updated_count)
-                    
-            except Exception as e:
-                logger.error("Lifecycle manager error: %s", e)
-                
-            await asyncio.sleep(60) # run every minute
+        from broadcast_lifecycle import run_lifecycle_manager_loop
+        await run_lifecycle_manager_loop(self)
 
     # HARDENED (VULN-08): Maximum concurrent SSE subscribers.
     # Without this cap, an attacker could open thousands of connections
@@ -614,20 +347,30 @@ class Broadcaster:
     MAX_SUBSCRIBERS = 500
 
     async def subscribe(self):
-        """Async generator yielding signals as they arrive via Condition broadcast."""
-        last_seen = self._total_broadcasts
-        while True:
-            async with self._live_condition:
-                if last_seen == self._total_broadcasts:
-                    try:
-                        await asyncio.wait_for(self._live_condition.wait(), timeout=60)
-                    except asyncio.TimeoutError:
-                        yield "HEARTBEAT"
-                        continue
-                
-                if self._latest_live_msg:
-                    yield self._latest_live_msg
-                last_seen = self._total_broadcasts
+        """
+        Async generator yielding signals as they arrive.
+        Each client gets a dedicated Bounded Memory Queue (maxsize=20).
+        Network latency on any client NEVER stalls the broadcaster.
+        """
+        queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=20)
+        self._live_queues.add(queue)
+        try:
+            if self._latest_live_msg:
+                try:
+                    queue.put_nowait(self._latest_live_msg)
+                except Exception:
+                    pass
+
+            while self._running:
+                try:
+                    msg = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield msg
+                except asyncio.TimeoutError:
+                    yield "HEARTBEAT"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self._live_queues.discard(queue)
 
     async def subscribe_delayed(self):
         """
@@ -651,84 +394,27 @@ class Broadcaster:
                     )
                     yield delayed_sig
 
-        last_seen = self._total_delayed_broadcasts
-        while True:
-            async with self._delayed_condition:
-                if last_seen == self._total_delayed_broadcasts:
-                    try:
-                        await asyncio.wait_for(self._delayed_condition.wait(), timeout=60)
-                    except asyncio.TimeoutError:
-                        yield "HEARTBEAT"
-                        continue
-                if self._latest_delayed_msg:
-                    yield self._latest_delayed_msg
-                last_seen = self._total_delayed_broadcasts
+        queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=20)
+        self._delayed_queues.add(queue)
+        try:
+            while self._running:
+                try:
+                    msg = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield msg
+                except asyncio.TimeoutError:
+                    yield "HEARTBEAT"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self._delayed_queues.discard(queue)
 
     def unsubscribe(self, *args) -> None:
-        """No-op. Condition based broadcaster handles garbage collection automatically."""
+        """No-op. Bounded queues clean up automatically upon generator exit."""
         pass
 
     async def _delayed_pusher_loop(self) -> None:
-        """
-        Periodically pushes signals that have matured past the Free Tier delay.
-
-        FIX DP-01 (Fragile Window Replaced):
-        The old logic used a 60-second window (age >= DELAY and age < DELAY+60).
-        If GC or CPU contention caused the loop to sleep even slightly too long,
-        the signal would age past DELAY+60 and be PERMANENTLY DROPPED — the user
-        never receives it.
-
-        New logic: track `last_pushed_broadcast_time` per pair. Push any signal
-        whose broadcast_time is NEWER than the last one pushed and is mature enough.
-        This is resilient to any loop delay.
-
-        FIX RC-01 (Race Condition):
-        Push loop now operates under `_delayed_sub_lock` to prevent
-        RuntimeError from concurrent subscribe/unsubscribe mutations.
-        """
-        await asyncio.sleep(15)
-        # Map: pair -> broadcast_time of the last signal pushed to delayed subscribers
-        last_pushed_broadcast_time: dict[str, datetime] = {}
-
-        while self._running:
-            try:
-                now = datetime.now(timezone.utc)
-                for pair in BROADCAST_PAIRS:
-                    history = self._history.get(pair, [])
-                    for sig in list(history):
-                        age = (now - sig.broadcast_time).total_seconds()
-                        if age < FREE_TIER_DELAY_SECONDS:
-                            continue  # Not yet matured — skip
-
-                        last_bt = last_pushed_broadcast_time.get(pair)
-                        if last_bt is not None and sig.broadcast_time <= last_bt:
-                            continue  # Already pushed this or an older signal
-
-                        # New matured signal — push it.
-                        last_pushed_broadcast_time[pair] = sig.broadcast_time
-                        delayed_sig = BroadcastSignal(
-                            symbol=sig.symbol,
-                            consensus=sig.consensus,
-                            snapshot=sig.snapshot,
-                            broadcast_time=sig.broadcast_time,
-                            cycle_id=sig.cycle_id,
-                            analysis_duration_ms=sig.analysis_duration_ms,
-                            status="delayed",
-                        )
-                        # Push via Condition broadcast (O(1) memory scaling)
-                        async with self._delayed_condition:
-                            self._latest_delayed_msg = delayed_sig
-                            self._total_delayed_broadcasts += 1
-                            self._delayed_condition.notify_all()
-
-                        logger.debug(
-                            "DELAYED PUSH: %s matured and broadcast to delayed subscribers",
-                            pair,
-                        )
-
-            except Exception as e:
-                logger.error("Delayed pusher error: %s", e)
-            await asyncio.sleep(10)
+        from broadcast_lifecycle import run_delayed_pusher_loop
+        await run_delayed_pusher_loop(self)
 
     # ──────────────────────────────────────────
     #  Public API (used by route handlers)

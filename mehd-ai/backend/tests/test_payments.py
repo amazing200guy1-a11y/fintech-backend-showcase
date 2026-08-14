@@ -36,7 +36,7 @@ from routes.payments import (
 class TestTierConfig:
     def test_all_tiers_exist(self):
         """All 4 tiers must be defined."""
-        required = ["observer", "core", "precision", "institutional"]
+        required = ["expired", "core", "precision", "institutional"]
         for tier in required:
             assert tier in TIER_CONFIG, f"Missing tier: {tier}"
 
@@ -45,49 +45,38 @@ class TestTierConfig:
         for legacy in ["scout", "guardian", "operative", "sovereign"]:
             assert legacy not in TIER_CONFIG, f"Legacy tier '{legacy}' should not be a primary key in TIER_CONFIG"
 
-    def test_observer_is_free(self):
-        config = TIER_CONFIG["observer"]
+    def test_expired_is_free(self):
+        config = TIER_CONFIG["expired"]
         assert config["price_monthly"] == 0
-        assert config["analyses_per_week"] == 1
-        assert config["analyses_per_day"] == 0  # Weekly-only for Observer
 
     def test_core_price_and_limits(self):
         config = TIER_CONFIG["core"]
-        assert config["price_monthly"] == 29.99
-        assert config["analyses_per_day"] == 10
-        assert config["autopilot_mode"] == "assisted"
-        assert config["auto_charting"] is False
+        assert config["price_monthly"] == 79.0
+        assert config["auto_execution"] == "assisted"
 
     def test_precision_price_and_limits(self):
         config = TIER_CONFIG["precision"]
-        assert config["price_monthly"] == 59.99
-        assert config["analyses_per_day"] == 50
-        assert config["autopilot_mode"] == "full"
-        assert config["auto_charting"] is True
+        assert config["price_monthly"] == 149.0
+        assert config["auto_execution"] in ("assisted", "full")
 
     def test_institutional_price_and_limits(self):
         config = TIER_CONFIG["institutional"]
-        assert config["price_monthly"] == 99.99
-        assert config["analyses_per_day"] == 999  # Unlimited
-        assert config["autopilot_mode"] == "full"
-        assert config["auto_charting"] is True
+        assert config["price_monthly"] == 299.0
+        assert config["auto_execution"] == "full"
 
     def test_institutional_has_extra_features(self):
         """Institutional must have features that Core doesn't."""
         core = TIER_CONFIG["core"]
         institutional = TIER_CONFIG["institutional"]
-        assert core["auto_charting"] is False
-        assert institutional["auto_charting"] is True
-        assert core["autopilot_mode"] == "assisted"
-        assert institutional["autopilot_mode"] == "full"
-        assert core["advanced_analytics"] is False
-        assert institutional["advanced_analytics"] is True
+        assert core["don_push_alerts"] is False
+        assert institutional["don_push_alerts"] is True
+        assert core["multi_account_sync"] is False
+        assert institutional["multi_account_sync"] is True
 
     def test_all_tiers_get_full_11_agents(self):
         """CRITICAL: No tier should limit the number of agents.
         Every analysis = full 11 agents. Always."""
         for tier_name, config in TIER_CONFIG.items():
-            # There should be no 'models_per_analysis' or 'agent_count' key
             assert "models_per_analysis" not in config, (
                 f"Tier '{tier_name}' has 'models_per_analysis' — "
                 f"this violates the core rule: every analysis uses ALL 11 agents"
@@ -99,9 +88,9 @@ class TestTierConfig:
 # ──────────────────────────────────────────────
 
 class TestLegacyAliases:
-    def test_scout_resolves_to_observer(self):
+    def test_scout_resolves_to_expired(self):
         config = get_tier_config("scout")
-        assert config == TIER_CONFIG["observer"]
+        assert config == TIER_CONFIG["expired"]
 
     def test_guardian_resolves_to_core(self):
         config = get_tier_config("guardian")
@@ -111,12 +100,12 @@ class TestLegacyAliases:
         config = get_tier_config("operative")
         assert config == TIER_CONFIG["institutional"]
 
-    def test_unknown_tier_defaults_to_observer(self):
+    def test_unknown_tier_defaults_to_expired(self):
         config = get_tier_config("nonexistent_tier")
-        assert config == TIER_CONFIG["observer"]
+        assert config == TIER_CONFIG["expired"]
 
     def test_alias_map_exists(self):
-        assert _LEGACY_TIER_ALIASES["scout"] == "observer"
+        assert _LEGACY_TIER_ALIASES["scout"] == "expired"
         assert _LEGACY_TIER_ALIASES["guardian"] == "core"
         assert _LEGACY_TIER_ALIASES["operative"] == "institutional"
 
@@ -148,7 +137,7 @@ class TestTierManagement:
 
     def test_get_tier_config_default(self):
         config = get_tier_config("nonexistent_tier")
-        assert config == TIER_CONFIG["observer"]
+        assert config == TIER_CONFIG["expired"]
 
 
 # ──────────────────────────────────────────────
@@ -234,7 +223,7 @@ class TestPriceIntegrity:
     def test_tiers_ordered_by_price(self):
         """Higher tiers must cost more (or equal)."""
         prices = [
-            TIER_CONFIG["observer"]["price_monthly"],
+            TIER_CONFIG["expired"]["price_monthly"],
             TIER_CONFIG["core"]["price_monthly"],
             TIER_CONFIG["precision"]["price_monthly"],
             TIER_CONFIG["institutional"]["price_monthly"],
@@ -243,12 +232,3 @@ class TestPriceIntegrity:
             assert prices[i] <= prices[i + 1], (
                 f"Tier price ordering broken: {prices[i]} > {prices[i+1]}"
             )
-
-    def test_tiers_ordered_by_features(self):
-        """Higher tiers must have more or equal analyses per day.
-        Observer uses weekly tokens (0/day), so we check Core < Precision < Institutional."""
-        core_daily = TIER_CONFIG["core"]["analyses_per_day"]
-        precision_daily = TIER_CONFIG["precision"]["analyses_per_day"]
-        institutional_daily = TIER_CONFIG["institutional"]["analyses_per_day"]
-        assert core_daily <= precision_daily
-        assert precision_daily <= institutional_daily

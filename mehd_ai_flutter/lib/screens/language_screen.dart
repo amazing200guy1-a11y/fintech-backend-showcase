@@ -53,9 +53,20 @@ class LanguageGridPicker extends StatelessWidget {
               final isEnglishOnly = code != 'en'; // Based on requirements: "English active — 7 others show coming soon"
               
               return GestureDetector(
-                onTap: isEnglishOnly ? null : () {
-                  langService.setLocale(Locale(code));
-                  Navigator.pop(context);
+                onTap: () {
+                  if (isEnglishOnly) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${lang['name']} support coming in v2.1',
+                            style: const TextStyle(fontFamily: 'JetBrains Mono')),
+                        backgroundColor: MehdAiTheme.textSecondary,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  } else {
+                    langService.setLocale(Locale(code));
+                    Navigator.pop(context);
+                  }
                 },
                 child: Container(
                   decoration: BoxDecoration(

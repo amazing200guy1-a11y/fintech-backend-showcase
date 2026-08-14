@@ -286,3 +286,117 @@ async def get_position_health(
             
     return user_health
 
+
+@router.get(
+    "/analyze/command/{symbol}",
+    summary="Fast swarm scan for slash command — returns entry, SL, TP, lot size",
+    tags=["Analysis"],
+)
+@limiter.limit("20/minute")
+async def analyze_for_command(
+    request: Request,
+    symbol: str,
+    direction: str = "BUY",
+    uid: str = Depends(get_current_user),
+) -> dict:
+    """
+    Triggered by /long and /short slash commands.
+    Returns a structured execution brief: entry, SL, TP, lot, and tier-gated flags.
+
+    Tier gates:
+    - core ($79):          entry + SL + TP. Manual EXECUTE confirm required. Sandbox.
+    - precision ($149):    Full levels + auto_execute=True. Live broker.
+    - institutional ($299): Full levels + auto_execute + don_alert + partial TP. Live.
+    """
+    if symbol not in VALID_SYMBOLS:
+        raise HTTPException(status_code=400, detail=f"Invalid symbol: {symbol}")
+
+    direction = direction.upper()
+    if direction not in ("BUY", "SELL"):
+        raise HTTPException(status_code=400, detail="direction must be BUY or SELL")
+
+    tier_name = await get_user_tier_async(uid)
+    from routes.payments import _LEGACY_TIER_ALIASES
+    tier_name = _LEGACY_TIER_ALIASES.get(tier_name, tier_name)
+
+    live_snapshot = streamer.get_latest_snapshot(symbol)
+    entry = live_snapshot.bid if direction == "BUY" else live_snapshot.ask
+    spread = live_snapshot.ask - live_snapshot.bid
+
+    is_jpy    = "JPY" in symbol
+    is_gold   = "XAU" in symbol
+    is_crypto = symbol in ("BTC/USD", "ETH/USD")
+
+    if is_crypto:
+        sl_distance = entry * 0.005   # 0.5%
+        tp_distance = entry * 0.012   # 1.2%
+    elif is_gold:
+        sl_distance = 5.00            # $5 SL
+        tp_distance = 12.00           # $12 TP  (1:2.4 RR)
+    elif is_jpy:
+        sl_distance = 0.30            # 30 pips
+        tp_distance = 0.72            # 72 pips (1:2.4 RR)
+    else:
+        sl_distance = 0.0030          # 30 pips
+        tp_distance = 0.0072          # 72 pips (1:2.4 RR)
+
+    if direction == "BUY":
+        sl = round(entry - sl_distance, 5)
+        tp = round(entry + tp_distance, 5)
+    else:
+        sl = round(entry + sl_distance, 5)
+        tp = round(entry - tp_distance, 5)
+
+    # 1% risk on $10k default equity — real equity from broker in production
+    risk_amount = 10_000.0 * 0.01
+    sl_pips = sl_distance * (100 if is_jpy else 10_000) if not is_gold and not is_crypto else sl_distance
+    pip_value = 1.0 if is_gold else (0.1 if is_jpy else 10.0)
+    raw_lot = risk_amount / (sl_pips * pip_value) if sl_pips > 0 else 0.01
+    suggested_lot = round(max(0.01, min(raw_lot, 100.0)), 2)
+
+    result = {
+        "symbol":        symbol,
+        "direction":     direction,
+        "entry":         round(entry, 5),
+        "sl":            sl,
+        "tp":            tp,
+        "suggested_lot": suggested_lot,
+        "spread_pips":   round(spread * (100 if is_jpy else 10_000), 1),
+        "risk_reward":   "1:2.4",
+        "tier":          tier_name,
+    }
+
+    if tier_name == "institutional":
+        result["auto_execute"]       = True
+        result["don_alert"]          = True
+        result["execution_mode"]     = "live"
+        result["automation_mode"]    = "fully-automated"
+        result["breakeven_trigger"]  = round(
+            (entry + sl_distance * 0.5) if direction == "BUY" else (entry - sl_distance * 0.5), 5
+        )
+        result["partial_tp"] = round(
+            (entry + tp_distance * 0.5) if direction == "BUY" else (entry - tp_distance * 0.5), 5
+        )
+    elif tier_name == "precision":
+        result["auto_execute"]       = True
+        result["don_alert"]          = False
+        result["execution_mode"]     = "live"
+        result["automation_mode"]    = "semi-automated"
+        result["breakeven_trigger"]  = round(
+            (entry + sl_distance * 0.5) if direction == "BUY" else (entry - sl_distance * 0.5), 5
+        )
+        result["partial_tp"] = round(
+            (entry + tp_distance * 0.5) if direction == "BUY" else (entry - tp_distance * 0.5), 5
+        )
+    else:
+        result["auto_execute"]   = False
+        result["don_alert"]      = False
+        result["execution_mode"] = "sandbox"
+        result["automation_mode"] = "manual"
+
+
+    logger.info(
+        "CMD_BRIEF: %s %s | tier=%s | entry=%.5f SL=%.5f TP=%.5f lot=%.2f | uid=%s",
+        direction, symbol, tier_name, entry, sl, tp, suggested_lot, uid[:8]
+    )
+    return result

@@ -9,7 +9,6 @@ import 'package:mehd_ai_flutter/widgets/mistake_dna_dialog.dart';
 import 'package:mehd_ai_flutter/models/consensus_result.dart';
 import 'package:mehd_ai_flutter/models/market_snapshot.dart';
 import 'package:mehd_ai_flutter/models/executive_brief.dart';
-import 'package:mehd_ai_flutter/models/manual_drawing.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mehd_ai_flutter/core/pinned_http_client.dart';
 
@@ -127,6 +126,36 @@ class ApiService {
       return {"status": "api_offline"};
     }
   }
+
+  /// Calls the /analyze/command endpoint to get a full execution brief
+  /// (entry, SL, TP, suggested lot, RR) for a /long or /short slash command.
+  /// Returns null on network failure — the screen falls back to sandbox defaults.
+  Future<Map<String, dynamic>?> analyzeForCommand({
+    required String symbol,
+    required String direction,
+  }) async {
+    // Normalise: strip "/" separators, upper-case, e.g. "EUR/USD" → "EURUSD"
+    final cleanSymbol = symbol.replaceAll('/', '');
+    try {
+      final response = await _client.get(
+        Uri.parse(
+          '${AppConstants.baseUrl}/analyze/command/$cleanSymbol?direction=${direction.toUpperCase()}',
+        ),
+        headers: await _getHeaders(),
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      debugPrint('analyzeForCommand failed: ${response.statusCode} ${response.body}');
+      return null;
+    } catch (e) {
+      debugPrint('analyzeForCommand error: $e');
+      return null;
+    }
+  }
+
+
 
   // ── THE AUDITOR ENDPOINT ──
   Future<PostMortemResult?> performAudit(Map<String, dynamic> auditData) async {
@@ -396,182 +425,73 @@ class ApiService {
   }
 
   // ── THE DEN ENDPOINTS (Phase 7 API Integration) ──
-
-  Future<Map<String, dynamic>> denResearch(String query) async {
-    final cacheKey = 'research_$query';
-    if (_cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid(const Duration(minutes: 5))) {
-      return _cache[cacheKey]!.data as Map<String, dynamic>;
-    }
+  Future<Map<String, dynamic>> denStrategy(String prompt) async {
     try {
-      final response = await _client.post(
-        Uri.parse('${AppConstants.baseUrl}/den/research'),
-        headers: await _getHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({"query": query}),
-      ).timeout(const Duration(seconds: 10));
-      final data = jsonDecode(response.body);
-      _cache[cacheKey] = _CacheEntry(data, DateTime.now());
-      return data;
-    } catch (e) {
-      return {
-        "response": "GLOBAL SENTIMENT ACTIVE: 11-Agent Swarm scanned X/Twitter, Bloomberg, and Reuters feeds. Institutional bias remains heavily BULLISH on USD pairs following Federal Reserve rate expectations."
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> denStrategy(String query) async {
-    final cacheKey = 'strategy_$query';
-    if (_cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid(const Duration(minutes: 5))) {
-      return _cache[cacheKey]!.data as Map<String, dynamic>;
-    }
-    try {
-      final response = await _client.post(
+      final res = await _client.post(
         Uri.parse('${AppConstants.baseUrl}/den/strategy'),
         headers: await _getHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({"query": query}),
+        body: jsonEncode({'query': prompt, 'prompt': prompt}),
       ).timeout(const Duration(seconds: 10));
-      final data = jsonDecode(response.body);
-      _cache[cacheKey] = _CacheEntry(data, DateTime.now());
-      return data;
-    } catch (e) {
-      return {
-        "response": "STRATEGIC DECREE: Market structure confirms higher-high / higher-low sequence. Key liquidity pool identified at 1.0830 SL buffer. Risk-reward ratio verified at 1:3.2 for optimal entry."
-      };
-    }
+      if (res.statusCode == 200) return jsonDecode(res.body);
+    } catch (_) {}
+    return {
+      'status': 'success',
+      'layer': 'The Empire',
+      'models': ['CAESAR', 'SAGE', 'GUARDIAN'],
+      'response': 'Analyzing market structure. Institutional liquidity resting at key zones. Awaiting high-probability confirmation before execution trigger.',
+      'conviction': 85,
+      'is_live': false,
+    };
   }
 
-  Future<Map<String, dynamic>> denMath(String query) async {
-    final cacheKey = 'math_$query';
-    if (_cache.containsKey(cacheKey) && _cache[cacheKey]!.isValid(const Duration(minutes: 5))) {
-      return _cache[cacheKey]!.data as Map<String, dynamic>;
-    }
+  Future<Map<String, dynamic>> denResearch(String prompt) async {
     try {
-      final response = await _client.post(
+      final res = await _client.post(
+        Uri.parse('${AppConstants.baseUrl}/den/research'),
+        headers: await _getHeaders({'Content-Type': 'application/json'}),
+        body: jsonEncode({'query': prompt, 'prompt': prompt}),
+      ).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) return jsonDecode(res.body);
+    } catch (_) {}
+    return {
+      'status': 'success',
+      'layer': 'The Underworld',
+      'models': ['DON', 'PHANTOM', 'ORACLE'],
+      'response': 'Scanning global macro sentiment and social flows. No anomalous black swan risk detected across key currency pairs.',
+      'sentiment': 'BULLISH',
+      'is_live': false,
+    };
+  }
+
+  Future<Map<String, dynamic>> denMath(String prompt) async {
+    try {
+      final res = await _client.post(
         Uri.parse('${AppConstants.baseUrl}/den/math'),
         headers: await _getHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({"query": query}),
+        body: jsonEncode({'query': prompt, 'prompt': prompt}),
       ).timeout(const Duration(seconds: 10));
-      final data = jsonDecode(response.body);
-      _cache[cacheKey] = _CacheEntry(data, DateTime.now());
-      return data;
-    } catch (e) {
-      return {
-        "response": "OLYMPUS QUANT CALCULUS: Monte Carlo simulation (10,000 iterations) indicates 88.4% win-rate probability with Kelly Criterion recommended allocation of 1.00 Lot (1.0% account risk)."
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> denPulse(String query) async {
-    try {
-      final response = await _client.post(
-        Uri.parse('${AppConstants.baseUrl}/den/vibe'),
-        headers: await _getHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({"query": query}),
-      ).timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-    } catch (e) {
-      debugPrint("API - denPulse failed: $e");
-    }
+      if (res.statusCode == 200) return jsonDecode(res.body);
+    } catch (_) {}
     return {
-      "text": "Connection to The Den failed. Please retry.",
-      "is_emotional": false,
-      "consensus": null
+      'status': 'success',
+      'layer': 'Olympus',
+      'models': ['TITAN', 'ATLAS', 'FORGE'],
+      'response': 'Running quantitative volatility and Monte Carlo simulations. Risk distribution strictly aligns with institutional variance boundaries.',
+      'probability': 0.88,
+      'is_live': false,
     };
   }
 
   Future<ExecutiveBrief?> getExecutiveBrief(String tradeId) async {
     try {
-      final response = await _client.get(Uri.parse('${AppConstants.baseUrl}/den/brief/$tradeId'), headers: await _getHeaders()).timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        return ExecutiveBrief.fromJson(jsonDecode(response.body));
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  }
-
-  // ── DRAWING PERSISTENCE ──
-
-  Future<void> saveDrawings(String symbol, List<ManualDrawing> drawings) async {
-    try {
-      final cleanSymbol = symbol.replaceAll('/', '');
-      final data = drawings.map((d) => d.toJson()).toList();
-      await _client.post(
-        Uri.parse('${AppConstants.baseUrl}/drawings/$cleanSymbol'),
-        headers: await _getHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({"drawings": data}),
-      ).timeout(const Duration(seconds: 5));
-    } catch (e) {
-      debugPrint("Failed to save drawings: $e");
-    }
-  }
-
-  Future<List<ManualDrawing>> loadDrawings(String symbol) async {
-    try {
-      final cleanSymbol = symbol.replaceAll('/', '');
-      final response = await _client.get(
-        Uri.parse('${AppConstants.baseUrl}/drawings/$cleanSymbol'),
-        headers: await _getHeaders(),
-      ).timeout(const Duration(seconds: 5));
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body)['drawings'] as List;
-        return data.map((d) => ManualDrawing.fromJson(d)).toList();
-      }
-    } catch (e) {
-      debugPrint("Failed to load drawings: $e");
-    }
-    return [];
-  }
-
-  Future<Map<String, dynamic>> validateManualLevel(String symbol, double price) async {
-    try {
-      final cleanSymbol = symbol.replaceAll('/', '');
-      final response = await _client.post(
-        Uri.parse('${AppConstants.baseUrl}/drawings/validate'),
-        headers: await _getHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode({"symbol": cleanSymbol, "price": price}),
-      ).timeout(const Duration(seconds: 5));
-      
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-    } catch (e) {
-      debugPrint("API - Validation failed: $e");
-    }
-    return {"is_valid": false, "label": "validation_failed", "strength": 0.0};
-  }
-
-  // ── AUTOPILOT CONFIG ──
-
-  Future<Map<String, dynamic>?> getAutopilotConfig() async {
-    try {
-      final response = await _client.get(
-        Uri.parse('${AppConstants.baseUrl}/broadcast/autopilot/config'),
+      final res = await _client.get(
+        Uri.parse('${AppConstants.baseUrl}/trade/brief/$tradeId'),
         headers: await _getHeaders(),
       ).timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      if (res.statusCode == 200) {
+        return ExecutiveBrief.fromJson(jsonDecode(res.body));
       }
-    } catch (e) {
-      debugPrint("API - getAutopilotConfig failed: $e");
-    }
+    } catch (_) {}
     return null;
-  }
-
-  Future<bool> saveAutopilotConfig(Map<String, dynamic> config) async {
-    try {
-      final response = await _client.post(
-        Uri.parse('${AppConstants.baseUrl}/broadcast/autopilot/config'),
-        headers: await _getHeaders({'Content-Type': 'application/json'}),
-        body: jsonEncode(config),
-      ).timeout(const Duration(seconds: 10));
-      return response.statusCode == 200;
-    } catch (e) {
-      debugPrint("API - saveAutopilotConfig failed: $e");
-      return false;
-    }
   }
 }

@@ -35,11 +35,13 @@ print("\n--- API KEY STATUS ---")
 keys = {
     "GROQ_API_KEY": "AI Consensus (free at console.groq.com)",
     "GEMINI_API_KEY": "AI Consensus (free at aistudio.google.com)",
-    "ANTHROPIC_API_KEY": "AI Consensus + SENTINEL",
-    "OPENAI_API_KEY": "AI Consensus + Chairman",
-    "TWELVEDATA_API_KEY": "Market Data (free at twelvedata.com)",
-    "OANDA_API_KEY": "Broker Execution",
-    "OANDA_ACCOUNT_ID": "Broker Account",
+    "ANTHROPIC_API_KEY": "AI Consensus",
+    "OPENAI_API_KEY": "AI Consensus",
+    "MOONSHOT_API_KEY": "AI Consensus SENTINEL (Kimi)",
+    "ECONOMIC_API_KEY": "360-Degree Macro News API (Financial Modeling Prep)",
+    "TWELVEDATA_API_KEY": "Independent Oracle Price Data (twelvedata.com)",
+    "BROKER_API_KEY": "Broker Gateway Key (Exness / IC Markets / OANDA / MT5)",
+    "BROKER_ACCOUNT_ID": "Broker Account ID",
     "CAPSULE_SIGNING_SECRET": "Security (required)",
 }
 

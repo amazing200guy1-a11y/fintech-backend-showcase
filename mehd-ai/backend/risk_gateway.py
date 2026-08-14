@@ -231,10 +231,16 @@ class RiskGateway:
             return result
 
         # ── GATE 3: Independent double-validation ───────
-        # Even if the kernel says "approved", we independently verify
-        # the lot size doesn't exceed 1% risk. This catches monkey-patching
-        # of the kernel's _calculate_safe_lot_size method.
-        max_risk_dollars = self._kernel.account.balance * (self._sealed.max_risk_per_trade_pct / 100)
+        # Use the USER's actual risk setting, not the system maximum.
+        # This ensures Gate 3 catches kernel bugs for ANY user risk level (e.g. 1%).
+        # Cap it at the system max for safety.
+        user_risk_pct = min(
+            order.risk_percentage or 1.0,
+            self._sealed.max_risk_per_trade_pct
+        )
+        if getattr(order, 'is_auto_execution', False):
+            user_risk_pct = min(user_risk_pct, 0.5)  # Autopilot cap matches kernel
+        max_risk_dollars = self._kernel.account.balance * (user_risk_pct / 100)
         pip_size = get_pip_size(order.symbol)
         
         if current_price > 0 and order.stop_loss is not None:

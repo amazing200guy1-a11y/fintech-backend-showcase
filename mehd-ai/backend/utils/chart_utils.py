@@ -45,17 +45,51 @@ def generate_drawing_commands(
         'label': '▲ CORE SUPPORT',
     })
     
-    # 2. Ghost Volume Zone (Supply/Demand)
+    # 2. Institutional Order Block (Supply / Demand Zone)
     commands.append({
-        'action': 'draw_zone',
-        'id': 'supply_demand_zone',
-        'price_top': support * 1.001,
-        'price_bottom': support * 0.999,
-        'color': '#00FF8822', # Transparent green
-        'label': 'LIQUIDITY NODE',
+        'action': 'draw_order_block',
+        'id': 'institutional_order_block',
+        'price_top': round(resistance * 0.9995, 5),
+        'price_bottom': round(resistance * 0.9980, 5),
+        'color': '#EF444433', # Transparent Red
+        'label': 'INSTITUTIONAL ORDER BLOCK (OB)',
+    })
+
+    # 3. Fair Value Gap (Imbalance Zone)
+    fvg_mid = round((resistance + support) / 2, 5)
+    commands.append({
+        'action': 'draw_fvg',
+        'id': 'fair_value_gap',
+        'price_top': round(fvg_mid * 1.0008, 5),
+        'price_bottom': round(fvg_mid * 0.9992, 5),
+        'color': '#F59E0B33', # Transparent Amber
+        'label': 'FAIR VALUE GAP (FVG IMBALANCE)',
+    })
+
+    # 4. Liquidity Pool (Equal Highs / Lows)
+    commands.append({
+        'action': 'draw_liquidity_pool',
+        'id': 'liquidity_pool_node',
+        'price_top': round(support * 1.0010, 5),
+        'price_bottom': round(support * 0.9990, 5),
+        'color': '#00FF8822', # Transparent Green
+        'label': 'LIQUIDITY POOL (BUY-SIDE LIQUIDITY)',
     })
     
-    # 3. AI Trend Corridor (Last 50 candles)
+    # 5. Fibonacci Retracement Golden Pocket (0.618 - 0.786)
+    fib_range = resistance - support
+    fib_618 = round(resistance - (fib_range * 0.618), 5)
+    fib_786 = round(resistance - (fib_range * 0.786), 5)
+    commands.append({
+        'action': 'draw_fibonacci',
+        'id': 'fibonacci_golden_pocket',
+        'fib_618': fib_618,
+        'fib_786': fib_786,
+        'color': '#8B5CF644', # Transparent Purple
+        'label': 'FIBONACCI OTE GOLDEN POCKET (0.618-0.786)',
+    })
+
+    # 6. AI Trend Corridor & Action Trigger
     if len(candles) >= 50:
         start_c = candles[-50]
         end_c = candles[-1]
@@ -70,14 +104,12 @@ def generate_drawing_commands(
             'label': 'AI BIAS CORRIDOR',
         })
 
-        # 4. Consensus Trade Arrow (Actionable Insight)
         if analysis.final_direction != Direction.HOLD:
-            arrow_price = end_c['close']
             commands.append({
                 'action': 'draw_arrow',
                 'id': 'consensus_trigger',
                 'time': end_c['time'],
-                'price': arrow_price,
+                'price': end_c['close'],
                 'direction': analysis.final_direction.value,
                 'label': f'AI {analysis.final_direction.value} TRIGGER ({analysis.consensus_percentage:.0f}%)',
             })

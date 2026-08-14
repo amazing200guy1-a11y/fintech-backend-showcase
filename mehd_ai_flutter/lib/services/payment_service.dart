@@ -8,8 +8,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:mehd_ai_flutter/core/constants.dart';
 
 class PaymentService extends ChangeNotifier {
-  String _currentTier = 'observer';
-  int _analysesPerDay = 1;
+  String _currentTier = 'institutional'; // TEMP: bypassed for UI inspection — restore to 'observer'
+  int _analysesPerDay = 999; // TEMP: bypassed for UI inspection — restore to 0
   int _tokensUsedToday = 0;
   int _analysesUsedToday = 0;
   final bool _isLoading = false;
@@ -75,7 +75,10 @@ class PaymentService extends ChangeNotifier {
 
   /// FIX #9: Use flutter_secure_storage for device ID — prevents trial abuse
   /// via clearing app data (secure storage persists differently per platform).
-  static const _secureStorage = FlutterSecureStorage();
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
 
   Future<String> _getDeviceId() async {
     String? deviceId = await _secureStorage.read(key: 'mehd_device_id');

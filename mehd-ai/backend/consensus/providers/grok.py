@@ -27,4 +27,4 @@ async def _call_grok(symbol: str, snapshot: MarketSnapshot, client: httpx.AsyncC
     )
     resp.raise_for_status()
     text = resp.json()["choices"][0]["message"]["content"]
-    return _parse_llm_json(text, "grok", snapshot.id)
+    return _parse_llm_json(text, "grok-beta", snapshot.id)

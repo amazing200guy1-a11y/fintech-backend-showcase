@@ -22,7 +22,10 @@ import 'package:mehd_ai_flutter/models/user_profile.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
 
   /// Saves or overwrites a full user profile in Firestore
   Future<void> saveUserProfile(UserProfile profile) async {

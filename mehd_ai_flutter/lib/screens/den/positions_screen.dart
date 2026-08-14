@@ -12,6 +12,7 @@ import 'package:mehd_ai_flutter/core/theme.dart';
 /// Institutional Active Risk Ledger & Real-Time Position Management Deck.
 /// Features live PnL ticking, Daily Target Progress Gauge, Partial Profit Lock (50%),
 /// Breakeven Move (BE Shield), and 1-tap Emergency Kill Switch.
+import 'package:mehd_ai_flutter/widgets/positions_ledger.dart';
 class PositionsScreen extends StatefulWidget {
   const PositionsScreen({super.key});
 
@@ -325,170 +326,17 @@ class _PositionsScreenState extends State<PositionsScreen> with SingleTickerProv
 
   // ── 4. POSITIONS LEDGER TABLE ─────────────────────────────────────────────
   Widget _buildPositionsLedger(BuildContext context, TradingController trading, List<Map<String, dynamic>> activePositions, double? livePrice, String activeSymbol) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF0D1117),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: MehdAiTheme.borderColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: MehdAiTheme.borderColor)),
-                  color: Color(0xFF161B22),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(flex: 2, child: Text("TICKET", style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text("SYMBOL", style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text("TYPE", style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold))),
-                    Expanded(flex: 2, child: Text("ENTRY", style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                    Expanded(flex: 2, child: Text("CURRENT", style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                    Expanded(flex: 3, child: Text("PROFIT / LOSS", style: GoogleFonts.outfit(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                    const SizedBox(width: 140, child: Text("ACTIONS", style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
-                  ],
-                ),
-              ),
-
-              // Body
-              Expanded(
-                child: activePositions.isEmpty 
-                  ? _buildEmptyPositionsState(context, livePrice, activeSymbol)
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(4),
-                      itemCount: activePositions.length,
-                      separatorBuilder: (c, i) => const Divider(color: MehdAiTheme.borderColor, height: 1),
-                      itemBuilder: (context, index) {
-                        final pos = activePositions[index];
-                        final String id = pos['id'] as String;
-                        final String symbol = pos['symbol'] as String;
-                        final String type = pos['type'] as String;
-                        final double entry = (pos['entry'] as num).toDouble();
-                        final double current = (pos['current'] as num).toDouble();
-                        final double pnl = (pos['pnl'] as num).toDouble();
-                        final double lotSize = (pos['lotSize'] as num?)?.toDouble() ?? 1.0;
-                        final bool isBreakevenArmed = pos['isBreakevenArmed'] == true;
-                        final bool isProfit = pnl >= 0;
-                        final Color pnlColor = isProfit ? const Color(0xFF00FF88) : const Color(0xFFFF3B3B);
-                        final Color typeColor = type == 'BUY' ? const Color(0xFF00FF88) : const Color(0xFFFF3B3B);
-
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
-                          child: Row(
-                            children: [
-                              // Ticket ID & Lot Size
-                              Expanded(
-                                flex: 2, 
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(id, style: GoogleFonts.jetBrainsMono(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.bold)),
-                                    Text('${lotSize.toStringAsFixed(2)} Lot', style: GoogleFonts.inter(color: MehdAiTheme.textSecondary, fontSize: 9)),
-                                  ],
-                                ),
-                              ),
-                              // Symbol
-                              Expanded(
-                                flex: 2, 
-                                child: Text(symbol, style: GoogleFonts.outfit(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                              ),
-                              // Type + BE Badge
-                              Expanded(
-                                flex: 2, 
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: typeColor.withOpacity(0.15),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(color: typeColor.withOpacity(0.4)),
-                                      ),
-                                      child: Text(type, style: TextStyle(color: typeColor, fontSize: 9, fontWeight: FontWeight.bold)),
-                                    ),
-                                    if (isBreakevenArmed) ...[
-                                      const SizedBox(width: 4),
-                                      const Icon(Icons.shield_rounded, color: Color(0xFF00FF88), size: 12),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              // Entry Price
-                              Expanded(
-                                flex: 2, 
-                                child: Text(entry.toStringAsFixed(symbol.contains('JPY') || symbol.contains('XAU') ? 2 : 4), style: GoogleFonts.jetBrainsMono(color: Colors.white70, fontSize: 11), textAlign: TextAlign.right),
-                              ),
-                        // Current Price — live from MarketDataController if symbol matches active chart
-                              Expanded(
-                                flex: 2, 
-                                child: Text(
-                                  (pos['symbol'] == activeSymbol && livePrice != null)
-                                    ? livePrice.toStringAsFixed(symbol.contains('JPY') || symbol.contains('XAU') ? 2 : 4)
-                                    : current.toStringAsFixed(symbol.contains('JPY') || symbol.contains('XAU') ? 2 : 4),
-                                  style: GoogleFonts.jetBrainsMono(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), 
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
-                              // PnL
-                              Expanded(
-                                flex: 3, 
-                                child: Text(
-                                  "${isProfit ? '+' : '-'}\$${pnl.abs().toStringAsFixed(2)}", 
-                                  style: GoogleFonts.jetBrainsMono(color: pnlColor, fontWeight: FontWeight.bold, fontSize: 15), 
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-
-                              // Institutional Actions Row
-                              SizedBox(
-                                width: 140,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    // 50% Lock Button
-                                    IconButton(
-                                      onPressed: () => trading.closePartialPosition(id, 0.5),
-                                      icon: const Icon(Icons.pie_chart_outline_rounded, color: MehdAiTheme.blue, size: 16),
-                                      tooltip: "Bank 50% Profit",
-                                    ),
-                                    // BE Shield Button
-                                    IconButton(
-                                      onPressed: () => trading.setBreakevenSL(id),
-                                      icon: Icon(Icons.shield_outlined, color: isBreakevenArmed ? const Color(0xFF00FF88) : Colors.white38, size: 16),
-                                      tooltip: "Move SL to Breakeven",
-                                    ),
-                                    // Close Position Button
-                                    IconButton(
-                                      onPressed: () => trading.closePosition(id),
-                                      icon: const Icon(Icons.close_rounded, color: const Color(0xFFFF3B3B), size: 16),
-                                      tooltip: "Liquidate Position",
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return PositionsLedger(
+      trading: trading,
+      activePositions: activePositions,
+      livePrice: livePrice,
+      activeSymbol: activeSymbol,
     );
   }
 
+
   // ── EMPTY STATE WITH 1-TAP TRADE STRIKE CARDS ────────────────────────────────
+  // ignore: unused_element
   Widget _buildEmptyPositionsState(BuildContext context, double? livePrice, String activeSymbol) {
     final trading = context.read<TradingController>();
     final settings = context.read<SettingsService>();

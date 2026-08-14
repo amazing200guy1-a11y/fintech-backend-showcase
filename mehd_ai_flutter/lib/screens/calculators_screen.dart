@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/services/settings_service.dart';
+import 'package:mehd_ai_flutter/controllers/market_data_controller.dart';
 
 class CalculatorsScreen extends StatefulWidget {
   const CalculatorsScreen({super.key});
@@ -102,18 +103,50 @@ class _CalculatorsScreenState extends State<CalculatorsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final market = context.watch<MarketDataController>();
+    final activeSymbol = market.activeSymbol ?? 'EUR/USD';
+    final livePrice = market.latestSnapshot?.close ?? 1.0850;
+
     return Scaffold(
-      backgroundColor: MehdAiTheme.background(context),
+      backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
         backgroundColor: MehdAiTheme.surface(context),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Row(
           children: [
             const Icon(Icons.calculate, color: MehdAiTheme.blue, size: 20),
             const SizedBox(width: 8),
             Text('TERMINAL CALCULATORS', style: MehdAiTheme.labelStyle),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFF58A6FF).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: const Color(0xFF58A6FF).withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 5, height: 5,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF58A6FF)),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    '$activeSymbol @ ${livePrice.toStringAsFixed(4)}',
+                    style: MehdAiTheme.terminalStyle.copyWith(color: const Color(0xFF58A6FF), fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
+
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,

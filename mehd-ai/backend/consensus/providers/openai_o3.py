@@ -20,11 +20,11 @@ async def _call_openai_o3(symbol: str, snapshot: MarketSnapshot, client: httpx.A
             "model": "o3-mini",
             # o3 doesn't support system prompts the same way, put it all in developer/user wrapper
             "messages": [
-                {"role": "developer", "content": sys_prompt},
+                {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": msg}
             ]
         }
     )
     resp.raise_for_status()
     text = resp.json()["choices"][0]["message"]["content"]
-    return _parse_llm_json(text, "openai-o3", snapshot.id)
+    return _parse_llm_json(text, "o3-mini", snapshot.id)

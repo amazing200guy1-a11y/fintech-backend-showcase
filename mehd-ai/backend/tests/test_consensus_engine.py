@@ -145,11 +145,11 @@ class TestParseLlmJson:
     def test_display_name_mapping(self):
         sid = self._make_snapshot_id()
         json_str = '{"direction": "BUY", "confidence": 80.0, "reasoning": "Test."}'
-        vote = _parse_llm_json(json_str, "grok", sid)
-        assert vote.model_name == "DON"  # grok maps to DON
+        vote = _parse_llm_json(json_str, "grok-beta", sid)
+        assert vote.model_name == "DON"  # grok-beta maps to DON
 
-        vote2 = _parse_llm_json(json_str, "claude", sid)
-        assert vote2.model_name == "SAGE"  # claude maps to SAGE
+        vote2 = _parse_llm_json(json_str, "claude-3-5-sonnet-20240620", sid)
+        assert vote2.model_name == "SAGE"  # claude-3-5-sonnet maps to SAGE
 
 
 # ──────────────────────────────────────────────
@@ -243,9 +243,20 @@ class TestMarketDataValidation:
 class TestDenIdentity:
     def test_all_models_have_identity(self):
         """Every model in the system must have a display name."""
-        required = ["grok", "perplexity", "gemini", "claude", "gpt-4",
-                     "llama", "deepseek", "openai-o3", "codestral",
-                     "chairman", "sentinel"]
+        # Use the actual full model-id keys from DEN_IDENTITY
+        required = [
+            "grok-beta",
+            "sonar-small-online",
+            "gemini-1.5-flash",
+            "claude-3-5-sonnet-20240620",
+            "gpt-4o",
+            "llama-3.1-70b",
+            "deepseek-chat",
+            "o3-mini",
+            "codestral-latest",
+            "claude-3-haiku-20240307",
+            "kimi-latest",
+        ]
         for model in required:
             assert model in DEN_IDENTITY, f"Model '{model}' missing from DEN_IDENTITY"
             assert "display_name" in DEN_IDENTITY[model]

@@ -8,6 +8,7 @@ import 'package:mehd_ai_flutter/widgets/consensus_bar.dart';
 import 'package:mehd_ai_flutter/widgets/ai_terminal.dart';
 import 'package:mehd_ai_flutter/widgets/den_sidebar.dart';
 import 'package:mehd_ai_flutter/widgets/data_freshness_indicator.dart';
+import 'package:mehd_ai_flutter/widgets/desktop_manual_toolbar.dart';
 import 'package:provider/provider.dart';
 
 // Screens
@@ -456,77 +457,39 @@ class _HomeDesktopLayoutState extends State<HomeDesktopLayout> {
     );
   }
 
-  Widget _buildManualToolbar() {
-    return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: MehdAiTheme.background(context).withOpacity(0.5),
-        border: Border(bottom: BorderSide(color: MehdAiTheme.border(context))),
-      ),
-      child: Row(
-        children: [
-          _buildToolBtn('H-LINE', 'hline'),
-          _buildToolBtn('FIB', 'fib'),
-          _buildToolBtn('TREND', 'trend'),
-          const Spacer(),
-          GestureDetector(
-            onTap: () {
-              _chartKey.currentState?.clearDrawings();
-              widget.market.clearConsensus();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF1A0000)),
-                borderRadius: BorderRadius.circular(3)
-              ),
-              child: const Text('CLR', style: TextStyle(color: Color(0xFFFF3B3B), fontSize: 9)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToolBtn(String label, String tool) {
-    final isActive = widget.market.activeTool == tool;
-    return GestureDetector(
-      onTap: () => widget.market.setActiveTool(tool),
+  Widget _buildToggleBtn(String label) {
+    final isAuto = label == "AUTO";
+    final active = isAuto ? (widget.market.drawingMode == 'AUTO') : (widget.market.drawingMode != 'AUTO');
+    return InkWell(
+      onTap: () {
+        widget.market.toggleDrawingMode(isAuto ? 'AUTO' : 'MANUAL');
+      },
+      borderRadius: BorderRadius.circular(4),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          border: Border.all(color: isActive ? const Color(0xFF58A6FF) : const Color(0xFF222222)),
-          color: isActive ? const Color(0xFF020810) : Colors.transparent,
-          borderRadius: BorderRadius.circular(3)
-        ),
-        child: Text(label, style: TextStyle(color: isActive ? const Color(0xFF58A6FF) : const Color(0xFF666666), fontSize: 9, letterSpacing: 0.5, fontWeight: FontWeight.bold)),
-      ),
-    );
-  }
-
-  Widget _buildToggleBtn(String mode) {
-    final isSelected = widget.market.drawingMode == mode;
-    return GestureDetector(
-      onTap: () => widget.market.toggleDrawingMode(mode),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF58A6FF).withOpacity(0.15) : Colors.transparent,
+          color: active ? (isAuto ? MehdAiTheme.green.withOpacity(0.2) : MehdAiTheme.blue.withOpacity(0.2)) : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: isSelected ? const Color(0xFF58A6FF) : MehdAiTheme.border(context)),
+          border: Border.all(color: active ? (isAuto ? MehdAiTheme.green : MehdAiTheme.blue) : Colors.grey.withOpacity(0.3)),
         ),
         child: Text(
-          mode, 
+          label,
           style: TextStyle(
-            color: isSelected ? const Color(0xFF58A6FF) : MehdAiTheme.textSecondary,
+            color: active ? (isAuto ? MehdAiTheme.green : MehdAiTheme.blue) : Colors.grey,
             fontSize: 11,
             fontWeight: FontWeight.bold,
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildManualToolbar() {
+    return DesktopManualToolbar(
+      activeTool: widget.market.activeTool,
+      chartMode: widget.market.drawingMode,
+      onToolSelected: (t) => widget.market.setActiveTool(t),
+      onModeSelected: (m) => widget.market.toggleDrawingMode(m),
     );
   }
 }

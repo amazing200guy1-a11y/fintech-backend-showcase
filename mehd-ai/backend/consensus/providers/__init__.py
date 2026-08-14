@@ -7,6 +7,7 @@ from consensus.providers.llama import _call_llama
 from consensus.providers.deepseek import _call_deepseek
 from consensus.providers.openai_o3 import _call_openai_o3
 from consensus.providers.codestral import _call_codestral
+from consensus.providers.moonshot import call_kimi
 
 MODEL_FUNCTIONS = {
     "grok": _call_grok,
@@ -18,4 +19,6 @@ MODEL_FUNCTIONS = {
     "deepseek": _call_deepseek,
     "openai-o3": _call_openai_o3,
     "codestral": _call_codestral,
+    "kimi": call_kimi,
+    "kimi-latest": call_kimi,
 }

@@ -14,7 +14,8 @@ import 'package:mehd_ai_flutter/services/settings_service.dart';
 /// A high-impact screen showing exactly what The Den protected the user from.
 
 class RejectionFeedScreen extends StatefulWidget {
-  const RejectionFeedScreen({super.key});
+  final bool showBack;
+  const RejectionFeedScreen({super.key, this.showBack = false});
 
   @override
   State<RejectionFeedScreen> createState() => _RejectionFeedScreenState();
@@ -53,6 +54,13 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
       backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        leading: widget.showBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: MehdAiTheme.textPrimary, size: 18),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+
         title: Text('REJECTION & PROTECT FEED', style: MehdAiTheme.headingStyle.copyWith(letterSpacing: 2)),
         backgroundColor: MehdAiTheme.bgSecondary,
         iconTheme: const IconThemeData(color: MehdAiTheme.textPrimary),
@@ -157,19 +165,24 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
                   const Divider(height: 1, color: MehdAiTheme.borderColor),
                   Expanded(
                     child: rejections.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.shield_rounded, size: 64, color: MehdAiTheme.shieldColor),
-                                const SizedBox(height: 16),
-                                Text("No trades blocked yet.", style: MehdAiTheme.headingStyle.copyWith(color: MehdAiTheme.shieldColor)),
-                                const SizedBox(height: 8),
-                                Text("The Den is actively monitoring.", style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.textSecondary)),
-                              ],
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 40),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.shield_rounded, size: 64, color: MehdAiTheme.shieldColor),
+                                  const SizedBox(height: 16),
+                                  Text("No trades blocked yet.", style: MehdAiTheme.headingStyle.copyWith(color: MehdAiTheme.shieldColor)),
+                                  const SizedBox(height: 8),
+                                  Text("The Den is actively monitoring.", style: MehdAiTheme.labelStyle.copyWith(color: MehdAiTheme.textSecondary)),
+                                ],
+                              ),
                             ),
                           )
                         : ListView.builder(
+
                             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                             itemCount: rejections.length,
                             itemBuilder: (context, index) {
@@ -269,7 +282,7 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
           child: Column(
             children: [
               Text(
-                value?.toString() ?? '0',
+                value.toString(),
                 style: GoogleFonts.outfit(
                   color: color,
                   fontSize: 22,
@@ -393,8 +406,8 @@ class _RejectionFeedScreenState extends State<RejectionFeedScreen> with SingleTi
                       children: agents.map((agent) {
                         // Mask agent name if showAgentNames is false
                         final displayName = showAgentNames 
-                            ? (agent?.toString() ?? 'AGENT')
-                            : 'AGENT #${(agent?.toString() ?? 'AGENT').hashCode.abs().toString().padLeft(4, '0').substring(0, 4)}';
+                            ? (agent.toString())
+                            : 'AGENT #${agent.toString().hashCode.abs().toString().padLeft(4, '0').substring(0, 4)}';
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(

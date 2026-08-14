@@ -97,73 +97,66 @@ SUCCESS_URL     = os.getenv("CHECKOUT_SUCCESS_URL", "https://mehdai.com/success.
 # ──────────────────────────────────────────────
 
 TIER_CONFIG = {
-    "observer": {
-        "display_name": "Observer Mode",
-        "analyses_per_week": 1,
-        "analyses_per_day": 0,
-        "sniper_access": True,
-        "autopilot_mode": "assisted",
-        "risk_engine_protection": True,
+    "expired": {
+        "display_name": "Trial Expired",
+        "max_broker_connections": 0,
+        "prop_firm_automation": False,
+        "auto_execution": "none",
+        "multi_account_sync": False,
+        "don_push_alerts": False,
+        "sniper_access": False,
+        "risk_engine_protection": False,
         "institutional_tools": False,
-        "morning_briefing": False,
-        "missed_trade_recap": False,
-        "advanced_analytics": False,
-        "auto_charting": False,
         "price_monthly": 0,
     },
     "core": {
         "display_name": "Core Trader",
-        "analyses_per_week": 999,
-        "analyses_per_day": 10,
+        "max_broker_connections": 1,
+        "prop_firm_automation": False,
+        "auto_execution": "assisted",
+        "multi_account_sync": False,
+        "don_push_alerts": False,
         "sniper_access": True,
-        "autopilot_mode": "assisted",
         "risk_engine_protection": True,
         "institutional_tools": False,
-        "morning_briefing": True,
-        "missed_trade_recap": True,
-        "advanced_analytics": False,
-        "auto_charting": False,
-        "price_monthly": 29.99,
+        "price_monthly": 79.00,
     },
     "precision": {
         "display_name": "Precision Trader",
-        "analyses_per_week": 999,
-        "analyses_per_day": 50,
+        "max_broker_connections": 3,
+        "prop_firm_automation": True,
+        "auto_execution": "assisted",
+        "multi_account_sync": True,
+        "don_push_alerts": False,
         "sniper_access": True,
-        "autopilot_mode": "full",
         "risk_engine_protection": True,
         "institutional_tools": True,
-        "morning_briefing": True,
-        "missed_trade_recap": True,
-        "advanced_analytics": True,
-        "auto_charting": True,
-        "price_monthly": 59.99,
+        "price_monthly": 149.00,
     },
     "institutional": {
-        "display_name": "Institutional",
-        "analyses_per_week": 999,
-        "analyses_per_day": 999,
+        "display_name": "Institutional Sovereign",
+        "max_broker_connections": 99,
+        "prop_firm_automation": True,
+        "auto_execution": "full",
+        "multi_account_sync": True,
+        "don_push_alerts": True,
         "sniper_access": True,
-        "autopilot_mode": "full",
         "risk_engine_protection": True,
         "institutional_tools": True,
-        "morning_briefing": True,
-        "missed_trade_recap": True,
-        "advanced_analytics": True,
-        "auto_charting": True,
-        "price_monthly": 99.99,
+        "price_monthly": 299.00,
     },
 }
 
 _LEGACY_TIER_ALIASES = {
-    "scout": "observer",
+    "observer": "expired",
+    "scout": "expired",
     "guardian": "core",
     "operative": "institutional",
 }
 
 def get_tier_config(tier_name: str) -> dict:
     resolved = _LEGACY_TIER_ALIASES.get(tier_name, tier_name)
-    return TIER_CONFIG.get(resolved, TIER_CONFIG["observer"])
+    return TIER_CONFIG.get(resolved, TIER_CONFIG["expired"])
 
 
 # ──────────────────────────────────────────────
@@ -253,244 +246,62 @@ async def get_user_tier_async(uid: str) -> str:
 #  Signature Verification Utilities
 # ──────────────────────────────────────────────
 
-def _verify_paddle_signature(payload: bytes, signature_header: str) -> bool:
+def _verify_paddle_signature(raw_body: bytes, header: str, secret: str = "") -> bool:
     """
-    Paddle v2 webhook signature verification.
-    Header format: ts=<timestamp>;h1=<hmac_sha256_hex>
-    Signed string: '<timestamp>:<raw_body>'
+    Verify Paddle v2 HMAC-SHA256 signature.
+    Header format: 'ts=1234567;h1=hash'
+    Rejects events older than 300 seconds (5 minutes).
     """
-    if not PADDLE_WEBHOOK_SECRET:
-        logger.critical("PADDLE_WEBHOOK_SECRET is not set — bouncing webhook")
+    if not secret:
+        secret = PADDLE_WEBHOOK_SECRET
+    if not secret or not header:
         return False
     try:
-        parts = dict(item.split("=", 1) for item in signature_header.split(";"))
-        ts = parts.get("ts", "")
+        parts = dict(item.split("=", 1) for item in header.split(";") if "=" in item)
+        ts_str = parts.get("ts", "")
         h1 = parts.get("h1", "")
-        if not ts or not h1:
+        if not ts_str or not h1:
             return False
-        # Replay attack guard: reject events older than 5 minutes
-        if abs(time.time() - int(ts)) > 300:
-            logger.warning("PADDLE WEBHOOK: Replay attack detected — timestamp %s", ts)
+        
+        # Check timestamp freshness (max 300s)
+        ts_val = int(ts_str)
+        now_val = int(time.time())
+        if abs(now_val - ts_val) > 300:
+            logger.warning("Paddle signature timestamp stale: ts=%d, now=%d", ts_val, now_val)
             return False
-        signed_payload = f"{ts}:{payload.decode('utf-8')}"
+
+        signed_payload = f"{ts_str}:{raw_body.decode('utf-8')}"
         expected = hmac.new(
-            PADDLE_WEBHOOK_SECRET.encode("utf-8"),
+            secret.encode("utf-8"),
             signed_payload.encode("utf-8"),
-            hashlib.sha256,
+            hashlib.sha256
         ).hexdigest()
         return hmac.compare_digest(expected, h1)
     except Exception as e:
-        logger.error("Paddle signature verification error: %s", e)
+        logger.warning("Paddle signature verification exception: %s", e)
         return False
 
 
-def _verify_paystack_signature(payload: bytes, signature_header: str) -> bool:
+def _verify_paystack_signature(raw_body: bytes, header: str, secret: str = "") -> bool:
     """
-    Paystack webhook signature verification.
-    Header: x-paystack-signature = HMAC-SHA512(raw_body, secret_key)
+    Verify Paystack HMAC-SHA512 signature.
+    Header contains hexadecimal HMAC-SHA512 hash of raw_body.
     """
-    if not PAYSTACK_SECRET_KEY:
-        logger.critical("PAYSTACK_SECRET_KEY is not set — bouncing webhook")
+    if not secret:
+        secret = PAYSTACK_SECRET_KEY
+    if not secret or not header:
         return False
     try:
         expected = hmac.new(
-            PAYSTACK_SECRET_KEY.encode("utf-8"),
-            payload,
-            hashlib.sha512,
+            secret.encode("utf-8"),
+            raw_body,
+            hashlib.sha512
         ).hexdigest()
-        return hmac.compare_digest(expected, signature_header)
+        return hmac.compare_digest(expected.lower(), header.lower())
     except Exception as e:
-        logger.error("Paystack signature verification error: %s", e)
+        logger.warning("Paystack signature verification exception: %s", e)
         return False
 
-
-# ──────────────────────────────────────────────
-#  Idempotency Guard
-# ──────────────────────────────────────────────
-
-async def _is_already_processed(event_id: str) -> bool:
-    """Returns True if the event has already been processed."""
-    if event_id in _processed_event_ids:
-        return True
-    from storage import storage
-    if await storage.get("webhook_events", event_id):
-        _processed_event_ids.append(event_id)
-        return True
-    return False
-
-
-async def _mark_processed(event_id: str, event_type: str) -> None:
-    _processed_event_ids.append(event_id)
-    from storage import storage
-    await storage.set("webhook_events", event_id, {
-        "processed_at": datetime.now(timezone.utc).isoformat(),
-        "event_type": event_type,
-    })
-
-
-# ──────────────────────────────────────────────
-#  Paddle Webhook Handler
-# ──────────────────────────────────────────────
-
-@router.post("/paddle-webhook", summary="Paddle webhook handler", include_in_schema=False)
-@limiter.limit("100/minute")
-async def paddle_webhook(request: Request):
-    """
-    Handles Paddle v2 subscription events:
-    - subscription.created  → new subscription, grant tier
-    - subscription.updated  → plan/status change (grant or revoke)
-    - subscription.canceled → cancel, downgrade to observer
-    - transaction.completed → (optional) one-time purchase confirmation
-    """
-    payload = await request.body()
-    sig_header = request.headers.get("Paddle-Signature", "")
-
-    if not _verify_paddle_signature(payload, sig_header):
-        logger.critical("PADDLE WEBHOOK: Invalid signature — possible tampering")
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
-
-    import json
-    try:
-        event = json.loads(payload)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
-
-    event_id   = event.get("notification_id", "")
-    event_type = event.get("event_type", "")
-    data       = event.get("data", {})
-
-    logger.info("PADDLE WEBHOOK: %s (id: %s)", event_type, event_id)
-
-    if event_id and await _is_already_processed(event_id):
-        return {"status": "already_processed"}
-
-    if event_id:
-        await _mark_processed(event_id, event_type)
-
-    # ── Extract UID from custom_data (we embed uid when creating checkout) ──
-    custom_data = data.get("custom_data") or {}
-    uid = custom_data.get("mehd_uid", "")
-
-    if not uid:
-        logger.warning("PADDLE WEBHOOK: No mehd_uid in custom_data for event %s", event_type)
-        return {"status": "no_uid"}
-
-    # ── Extract portal/billing management URLs from subscription data ──
-    management_urls = data.get("management_urls") or {}
-    portal_urls = {
-        "update_payment_method": management_urls.get("update_payment_method", PRICING_URL),
-        "cancel": management_urls.get("cancel", PRICING_URL),
-    }
-
-    if event_type in ("subscription.created", "subscription.updated"):
-        status = data.get("status", "")
-        if status in ("active", "trialing", "past_due"):
-            # Find tier from price ID
-            items = data.get("items") or []
-            for item in items:
-                price_id = (item.get("price") or {}).get("id", "")
-                tier = PADDLE_TO_TIER.get(price_id)
-                if tier:
-                    set_user_tier(uid, tier, portal_urls)
-                    logger.info("PADDLE: User %s → %s (status: %s)", uid, tier, status)
-                    break
-        elif status in ("canceled", "paused"):
-            await _downgrade_user(uid, "paddle subscription paused/canceled")
-
-    elif event_type == "subscription.canceled":
-        await _downgrade_user(uid, "paddle subscription canceled")
-
-    return {"status": "ok"}
-
-
-# ──────────────────────────────────────────────
-#  Paystack Webhook Handler
-# ──────────────────────────────────────────────
-
-@router.post("/paystack-webhook", summary="Paystack webhook handler", include_in_schema=False)
-@limiter.limit("100/minute")
-async def paystack_webhook(request: Request):
-    """
-    Handles Paystack subscription events:
-    - subscription.create   → new subscription, grant tier
-    - subscription.disable  → cancellation, downgrade to observer
-    - invoice.payment_failed → warn, do not punish immediately
-    """
-    payload = await request.body()
-    sig_header = request.headers.get("x-paystack-signature", "")
-
-    if not _verify_paystack_signature(payload, sig_header):
-        logger.critical("PAYSTACK WEBHOOK: Invalid signature — possible tampering")
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
-
-    import json
-    try:
-        event = json.loads(payload)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
-
-    event_id   = event.get("id", str(int(time.time() * 1000)))  # Paystack uses numeric IDs
-    event_type = event.get("event", "")
-    data       = event.get("data", {})
-
-    logger.info("PAYSTACK WEBHOOK: %s (id: %s)", event_type, event_id)
-
-    if str(event_id) and await _is_already_processed(str(event_id)):
-        return {"status": "already_processed"}
-
-    if event_id:
-        await _mark_processed(str(event_id), event_type)
-
-    if event_type == "subscription.create":
-        # Paystack embeds customer email and plan code
-        customer = data.get("customer") or {}
-        email    = customer.get("email", "")
-        plan     = data.get("plan") or {}
-        plan_code = plan.get("plan_code", "")
-
-        tier = PAYSTACK_TO_TIER.get(plan_code)
-        if not tier:
-            logger.warning("PAYSTACK: Unknown plan_code %s — cannot map to tier", plan_code)
-            return {"status": "unknown_plan"}
-
-        # Resolve UID from email via Firebase
-        uid = await _uid_from_email(email)
-        if not uid:
-            logger.warning("PAYSTACK: No Firebase user found for email %s", email)
-            return {"status": "user_not_found"}
-
-        # Cache the email → uid mapping
-        _paystack_email_to_uid[email] = uid
-
-        # Paystack does not provide self-service portal URLs.
-        # We direct users to the website billing section.
-        portal_urls = {
-            "update_payment_method": PRICING_URL,
-            "cancel": PRICING_URL,
-        }
-        set_user_tier(uid, tier, portal_urls)
-        logger.info("PAYSTACK: User %s (%s) → %s", uid, email, tier)
-
-    elif event_type == "subscription.disable":
-        customer  = data.get("customer") or {}
-        email     = customer.get("email", "")
-        uid = _paystack_email_to_uid.get(email) or await _uid_from_email(email)
-        if uid:
-            await _downgrade_user(uid, "paystack subscription disabled")
-
-    elif event_type == "invoice.payment_failed":
-        customer = data.get("customer") or {}
-        email    = customer.get("email", "")
-        uid = _paystack_email_to_uid.get(email) or await _uid_from_email(email)
-        if uid:
-            logger.warning("PAYSTACK PAYMENT FAILED: User %s (%s) — Paystack will retry", uid, email)
-
-    return {"status": "ok"}
-
-
-# ──────────────────────────────────────────────
-#  Helper: Downgrade User
-# ──────────────────────────────────────────────
 
 async def _downgrade_user(uid: str, reason: str) -> None:
     """Downgrade a user to observer, unless they have an active free trial."""

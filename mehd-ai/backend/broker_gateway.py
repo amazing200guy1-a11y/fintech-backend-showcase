@@ -97,13 +97,21 @@ class BrokerGateway:
     
     def _headers(self, credentials: dict | None = None) -> dict:
         """Build API headers with the user's decrypted credentials."""
-        # Check if the credentials dictionary contains a Binance key
-        api_key = credentials.get("api_key") if credentials else os.getenv("OANDA_API_KEY", "")
+        from crypto_vault import vault
+        if credentials and "api_key" in credentials:
+            # Auto-decrypt if encrypted Fernet token is passed
+            raw_key = credentials.get("api_key", "")
+            if raw_key.startswith("gAAAAA"):  # Fernet token prefix
+                api_key = vault.decrypt_secret(raw_key)
+            else:
+                api_key = raw_key
+        else:
+            api_key = os.getenv("OANDA_API_KEY", "")
+
         return {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept-Datetime-Format": "RFC3339",
-            # Additional headers for Binance/Bybit would go here
             "X-MBX-APIKEY": api_key,
         }
     
@@ -111,9 +119,9 @@ class BrokerGateway:
         """
         Execute an order on the user's connected exchange using their decrypted keys.
         """
-        # If the user has connected Binance/Bybit keys, we use those.
-        # Otherwise, we check if there's a system fallback in .env (for paper trading).
-        is_live = credentials is not None or self.is_live
+        from crypto_vault import vault
+        if credentials:
+            credentials = vault.decrypt_credentials(credentials)
         account_id = credentials.get("account_id") if credentials else os.getenv("OANDA_ACCOUNT_ID", "")
         
         now = time.monotonic()
@@ -121,13 +129,13 @@ class BrokerGateway:
             remaining = int(self._circuit_breaker_open_until - now)
             logger.critical("API Latency Circuit Breaker is OPEN. Halting trades for %ds.", remaining)
             return {
-                "mode": "live" if is_live else "paper",
+                "mode": "live" if self.is_live else "paper",
                 "status": "rejected",
                 "broker": "oanda",
                 "reason": f"API Latency Circuit Breaker Active. Trades halted for {remaining}s due to severe broker latency.",
             }
 
-        if not is_live:
+        if not self.is_live:
             return self._mock_execution(order, decision)
         
         try:
@@ -374,25 +382,21 @@ class BrokerGateway:
         current_hour = time.gmtime().tm_hour
         is_volatile_hours = 12 <= current_hour <= 18
         
-        # 3. Calculate dynamic spread and slippage (in pip fractional units)
-        # Base spread: 1 to 2 pips (0.00010 - 0.00020 for typical USD pairs)
-        # Slippage: random noise up to 3 pips normally, up to 15 pips during volatile sessions
-        base_spread = random.uniform(0.00010, 0.00020)
+        # 3. Calculate dynamic spread and slippage — scaled to the symbol's pip size
+        # Base spread: 1 to 2 pips. Slippage: 0.2 to 3 pips normally, up to 15 pips volatile.
+        pip_size = get_pip_size(order.symbol)
+        base_spread = random.uniform(1.0, 2.0) * pip_size  # 1-2 pips in price units
         
         if is_volatile_hours:
-            # Volatile market: spread widens and slippage becomes highly unfavorable
-            slippage = random.uniform(0.00020, 0.00150)  # 2 to 15 pips
+            slippage = random.uniform(2.0, 15.0) * pip_size  # 2 to 15 pips
         else:
-            # Calm market: tight spread, minimal slippage
-            slippage = random.uniform(0.00002, 0.00030)  # 0.2 to 3 pips
+            slippage = random.uniform(0.2, 3.0) * pip_size   # 0.2 to 3 pips
 
         # Slippage is always unfavorable to the execution direction:
-        # If BUY: we fill higher (worse). If SELL: we fill lower (worse).
-        # order.direction is a Direction enum — .value gives the string "BUY" or "SELL"
         direction_multiplier = 1 if order.direction.value.upper() == "BUY" else -1
         realistic_fill_price = base_price + (direction_multiplier * (base_spread + slippage))
         
-        total_costs_pips = (base_spread + slippage) * 10000
+        total_costs_pips = (base_spread + slippage) / pip_size  # Back to pips for logging
         logger.info(
             "📊 Paper Fill Sim: Base %.5f | Cost/Slippage: +%.1f pips | Final Fill %.5f", 
             base_price, total_costs_pips, realistic_fill_price

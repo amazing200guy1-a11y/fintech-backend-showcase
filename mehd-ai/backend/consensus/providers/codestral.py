@@ -27,4 +27,4 @@ async def _call_codestral(symbol: str, snapshot: MarketSnapshot, client: httpx.A
     )
     resp.raise_for_status()
     text = resp.json()["choices"][0]["message"]["content"]
-    return _parse_llm_json(text, "codestral", snapshot.id)
+    return _parse_llm_json(text, "codestral-latest", snapshot.id)

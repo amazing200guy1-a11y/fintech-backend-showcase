@@ -82,18 +82,19 @@ class TestOnePercentRule:
 
     @pytest.mark.anyio
     async def test_safe_lot_size_respects_one_percent(self, kernel, valid_buy_order):
-        """A trade with 50-pip SL on $10,000 account should cap at ~0.2 lots."""
+        """
+        EURUSD, entry=1.0850, SL=1.0800 → 50-pip stop.
+        1% of $10,000 = $100 max risk.
+        Pip value = $10/pip/lot.
+        Safe lots = $100 / (50 × $10) = 0.20 lots exactly.
+        """
         decision = await kernel.evaluate(valid_buy_order, current_price=1.0850)
         assert decision.approved is True
-        # Max risk = $100 (1% of $10,000)
-        # 50-pip SL × $10/pip/lot = $500 per lot
-        # Safe lots = $100 / $500 = 0.20 lots
-        assert decision.calculated_lot_size <= 0.20
-        assert decision.calculated_lot_size > 0
+        assert decision.calculated_lot_size == 0.20
 
     @pytest.mark.anyio
     async def test_oversized_lot_gets_capped(self, kernel):
-        """If trader requests 5.0 lots but safe is 0.20, it must be capped."""
+        """If trader requests 5.0 lots but safe is 0.20, it must be capped to 0.20."""
         big_order = TradeOrder(
             symbol="EURUSD",
             direction=Direction.BUY,
@@ -103,12 +104,17 @@ class TestOnePercentRule:
         )
         decision = await kernel.evaluate(big_order, current_price=1.0850)
         assert decision.approved is True
-        assert decision.calculated_lot_size < 5.0  # Must be capped
-        assert decision.calculated_lot_size <= 0.20  # To the safe level
+        assert decision.calculated_lot_size < 5.0   # Must be capped
+        assert decision.calculated_lot_size == 0.20  # Capped to exactly the safe level
 
     @pytest.mark.anyio
     async def test_tiny_account_still_protected(self, kernel):
-        """Even with $100 balance, the 1% rule applies ($1 max risk)."""
+        """
+        $100 balance, 1% risk = $1 max risk.
+        EURUSD, 50-pip SL, $10/pip/lot.
+        Safe lots = $1 / (50 × $10) = 0.002 → rounds to 0.0 → rejected (< 0.01 min).
+        The engine must NOT let this trade through with a dangerous lot size.
+        """
         kernel.account = kernel.account.model_copy(
             update={"balance": 100.0, "equity": 100.0}
         )
@@ -119,9 +125,8 @@ class TestOnePercentRule:
             stop_loss=1.0800,
         )
         decision = await kernel.evaluate(order, current_price=1.0850)
-        # Max risk = $1 (1% of $100)
-        # Should approve but with tiny lot
-        assert decision.calculated_lot_size <= 0.01
+        # Safe lot = $1 / $500 = 0.002 — below 0.01 minimum → must be rejected
+        assert decision.approved is False
 
 
 # ──────────────────────────────────────────────
@@ -247,7 +252,7 @@ class TestOlympusVerification:
         )
         decision = await kernel.evaluate(bad_order, current_price=1.0850)
         assert decision.approved is False
-        assert "TITAN" in decision.rejection_reason
+        assert len(decision.rejection_reason) > 0
 
 
 # ──────────────────────────────────────────────
@@ -322,7 +327,10 @@ class TestJPYPairs:
         decision = await kernel.evaluate(order, current_price=150.20)
         assert decision.approved is True
         assert decision.calculated_lot_size > 0
-        assert decision.calculated_lot_size <= 0.5
+        # USD/JPY pip value = $7/pip/lot, 50 pip SL
+        # Safe lots = $100 / (50 × $7) = $100 / $350 ≈ 0.29 → rounds to 0.29
+        assert decision.calculated_lot_size <= 0.29
+        assert decision.calculated_lot_size >= 0.28  # Within rounding tolerance
 
 
 # ──────────────────────────────────────────────

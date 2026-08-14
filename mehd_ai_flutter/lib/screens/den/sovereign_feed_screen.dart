@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'dart:ui';
 
 class SovereignFeedScreen extends StatefulWidget {
-  const SovereignFeedScreen({super.key});
+  final bool showBack;
+  const SovereignFeedScreen({super.key, this.showBack = true});
 
   @override
   State<SovereignFeedScreen> createState() => _SovereignFeedScreenState();
@@ -19,6 +21,7 @@ class _SovereignFeedScreenState extends State<SovereignFeedScreen> with SingleTi
     "[15:42:05] DATA MOAT: Fetching verified signatures...",
   ];
   Timer? _simTimer;
+  StreamSubscription<QuerySnapshot>? _firestoreSub;
 
   @override
   void initState() {
@@ -28,32 +31,59 @@ class _SovereignFeedScreenState extends State<SovereignFeedScreen> with SingleTi
       duration: const Duration(seconds: 4),
     )..repeat(reverse: true);
 
-    _startSimulation();
+    _initLiveStream();
   }
 
-  void _startSimulation() {
-    // Simulating the Firebase stream for now
-    _simTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+  void _initLiveStream() {
+    // 1. Listen to live Firestore sovereign_feed collection if available
+    try {
+      _firestoreSub = FirebaseFirestore.instance
+          .collection('sovereign_feed')
+          .orderBy('timestamp', descending: true)
+          .limit(25)
+          .snapshots()
+          .listen((snapshot) {
+        if (!mounted || snapshot.docs.isEmpty) return;
+        setState(() {
+          for (var doc in snapshot.docs.reversed) {
+            final data = doc.data();
+            final message = data['message'] ?? data['event'] ?? '';
+            final ts = data['timestamp'] != null ? data['timestamp'].toString() : '';
+            if (message.isNotEmpty) {
+              final formatted = "[$ts] $message";
+              if (!_logs.contains(formatted)) {
+                _logs.add(formatted);
+              }
+            }
+          }
+        });
+      }, onError: (e) {
+        debugPrint("SovereignFeed: Firestore stream error (non-fatal, using seed fallback): $e");
+      });
+    } catch (e) {
+      debugPrint("SovereignFeed: Firestore init error: $e");
+    }
+
+    // 2. Seed fallback simulation timer (keeps feed active when offline/before initial Firestore events)
+    _simTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (!mounted) return;
       setState(() {
-        if (_logs.length > 20) _logs.removeAt(0); // Keep log short
+        if (_logs.length > 30) _logs.removeAt(0); // Keep buffer managed
         
-        // Random intelligence events
         final events = [
-            "Auditor fixed FOMO paradox in GBP/USD Constitution.",
-            "Alpha Snapshot Secured: 98.7% Consensus Reached.",
-            "Sentinel blocked anomalous volatility in Gold.",
-            "Titan backtest completed: 14 new vectors added to Moat.",
-            "Data Purity Score at 99.1%. Synchronizing layers..."
+          "Auditor fixed FOMO paradox in GBP/USD Constitution.",
+          "Alpha Snapshot Secured: 98.7% Consensus Reached.",
+          "Sentinel blocked anomalous volatility in Gold.",
+          "Titan backtest completed: 14 new vectors added to Moat.",
+          "Data Purity Score at 99.1%. Synchronizing layers..."
         ];
         
         final evt = events[DateTime.now().millisecond % events.length];
         final timeStr = "${DateTime.now().hour.toString().padLeft(2,'0')}:${DateTime.now().minute.toString().padLeft(2,'0')}:${DateTime.now().second.toString().padLeft(2,'0')}";
         
         _logs.add("[$timeStr] $evt");
-        
         if (evt.contains("Snapshot")) {
-            _alphaSnapshots += 1;
+          _alphaSnapshots += 1;
         }
       });
     });
@@ -62,6 +92,7 @@ class _SovereignFeedScreenState extends State<SovereignFeedScreen> with SingleTi
   @override
   void dispose() {
     _simTimer?.cancel();
+    _firestoreSub?.cancel();
     _animController.dispose();
     super.dispose();
   }
@@ -71,10 +102,21 @@ class _SovereignFeedScreenState extends State<SovereignFeedScreen> with SingleTi
     return Scaffold(
       backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: false,
+        backgroundColor: MehdAiTheme.bgSecondary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        leading: widget.showBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+        title: Text(
+          'SOVEREIGN INTELLIGENCE STREAM',
+          style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+        ),
       ),
+
       body: Stack(
         children: [
           // Background ambient glows

@@ -65,30 +65,37 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
   Future<void> _navigate() async {
     bool done = false;
-    try {
-      final p = await SharedPreferences.getInstance();
-      done = p.getBool('onboarding_complete') ?? false;
-    } catch (e) {
-      debugPrint("Splash: Failed to load SharedPreferences: $e");
-    }
-    
     User? user;
     try {
-      if (Firebase.apps.isNotEmpty) {
-        user = FirebaseAuth.instance.currentUser;
+      try {
+        final p = await SharedPreferences.getInstance();
+        done = p.getBool('onboarding_complete') ?? false;
+      } catch (e) {
+        debugPrint("Splash: SharedPreferences error: $e");
+      }
+      
+      try {
+        if (Firebase.apps.isNotEmpty) {
+          user = FirebaseAuth.instance.currentUser;
+        }
+      } catch (e) {
+        debugPrint("Splash: Auth error: $e");
+      }
+
+      if (!mounted) return;
+
+      if (user != null) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else if (!done) {
+        Navigator.pushReplacementNamed(context, '/welcome');
+      } else {
+        Navigator.pushReplacementNamed(context, '/login');
       }
     } catch (e) {
-      debugPrint("Auth error on splash: $e");
-    }
-
-    if (!mounted) return;
-
-    if (user != null) {
-      Navigator.pushReplacementNamed(context, '/home');
-    } else if (!done) {
-      Navigator.pushReplacementNamed(context, '/welcome');
-    } else {
-      Navigator.pushReplacementNamed(context, '/login');
+      debugPrint("Splash: Navigation fallback triggered: $e");
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/welcome');
+      }
     }
   }
 

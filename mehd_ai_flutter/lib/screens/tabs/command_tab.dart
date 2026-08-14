@@ -11,6 +11,8 @@ import 'package:mehd_ai_flutter/widgets/techno_card.dart';
 /// All toggles persist to SettingsService (Firebase + SharedPreferences).
 /// Signal queue reflects your real active symbol and real conviction threshold.
 /// Execution log appends entries when TradingController positions change.
+import 'package:mehd_ai_flutter/widgets/command_tab_execution_log.dart';
+import 'package:mehd_ai_flutter/widgets/command_tab_risk_rules.dart';
 class CommandTab extends StatefulWidget {
   const CommandTab({super.key});
 
@@ -19,9 +21,6 @@ class CommandTab extends StatefulWidget {
 }
 
 class _CommandTabState extends State<CommandTab> {
-  // Locally tracks Tiger Mode (not yet in SettingsService — UI only for now)
-  bool _isTigerMode = false;
-
   // Execution log — appended dynamically when positions change
   final List<Map<String, dynamic>> _executionLog = [];
   int _lastPositionCount = 0;
@@ -296,13 +295,13 @@ class _CommandTabState extends State<CommandTab> {
           onChanged: (val) => settings.setAlphaPredatorMode(val),
         ),
         const SizedBox(height: 10),
-        // Tiger Mode — UI only (backend integration when broker API is live)
+        // Tiger Mode — persisted to SettingsService (Firebase + SharedPreferences)
         _buildToggleRow(
           title: 'TIGER INSTITUTIONAL MODE',
           subtitle: 'Zero-latency gateway to your connected broker API (requires live broker connection)',
-          value: _isTigerMode,
+          value: settings.tigerMode,
           color: MehdAiTheme.gold,
-          onChanged: (val) => setState(() => _isTigerMode = val),
+          onChanged: (val) => settings.setTigerMode(val),
         ),
       ],
     );
@@ -365,7 +364,7 @@ class _CommandTabState extends State<CommandTab> {
                 ? const Color(0xFFFF3B3B)
                 : const Color(0xFF888888);
         final String status = !meets
-            ? 'REJECTED (< ${threshold}% THRESHOLD)'
+            ? 'REJECTED (<$threshold%)'
             : dir == 'HOLD'
                 ? 'MONITORING'
                 : 'STRIKE QUEUED';
@@ -380,40 +379,55 @@ class _CommandTabState extends State<CommandTab> {
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: color.withOpacity(0.4)),
+              // LEFT SIDE — wrapped in Expanded so it never squeezes the right column
+              Expanded(
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: color.withOpacity(0.4)),
+                    ),
+                    child: Text(dir, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
-                  child: Text(dir, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Text(signal['symbol'] as String, style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
-                      if (signal['symbol'] == activeSymbol) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(color: MehdAiTheme.blue.withOpacity(0.15), borderRadius: BorderRadius.circular(3), border: Border.all(color: MehdAiTheme.blue.withOpacity(0.4))),
-                          child: Text('ACTIVE', style: GoogleFonts.inter(color: MehdAiTheme.blue, fontSize: 8, fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Flexible(
+                            child: Text(signal['symbol'] as String,
+                              style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (signal['symbol'] == activeSymbol) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(color: MehdAiTheme.blue.withOpacity(0.15), borderRadius: BorderRadius.circular(3), border: Border.all(color: MehdAiTheme.blue.withOpacity(0.4))),
+                              child: Text('ACTIVE', style: GoogleFonts.inter(color: MehdAiTheme.blue, fontSize: 8, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ]),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Price: ${signal['price']}  •  TP: ${signal['target']}  •  SL: ${signal['sl']}  •  Lot: ${effectiveLot.toStringAsFixed(2)}',
+                          style: GoogleFonts.inter(color: Colors.white54, fontSize: 10),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ],
-                    ]),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Price: ${signal['price']}  •  TP: ${signal['target']}  •  SL: ${signal['sl']}  •  Lot: ${effectiveLot.toStringAsFixed(2)}',
-                      style: GoogleFonts.inter(color: Colors.white54, fontSize: 10),
                     ),
-                  ],
-                ),
-              ]),
+                  ),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              // RIGHT SIDE — conviction % + status badge, never clipped
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -422,7 +436,11 @@ class _CommandTabState extends State<CommandTab> {
                     style: GoogleFonts.jetBrainsMono(color: meets ? const Color(0xFF00FF88) : Colors.white38, fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 2),
-                  Text(status, style: GoogleFonts.inter(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
+                  Text(
+                    status,
+                    style: GoogleFonts.inter(color: color, fontSize: 9, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ],
@@ -432,88 +450,12 @@ class _CommandTabState extends State<CommandTab> {
     );
   }
 
-  // ── 5. SENTINEL RISK RULES ────────────────────────────────────────────────
   Widget _buildSentinelRiskRulesCard(double riskPct, double stopLossPips) {
-    return TechnoCard(
-      borderColor: MehdAiTheme.gold.withOpacity(0.3),
-      child: Column(
-        children: [
-          // Reads from settings.riskPerTrade
-          _buildRiskRuleRow('AUTO-KILL SWITCH', 'Freezes trading if daily drawdown hits ${(riskPct * 3).toStringAsFixed(1)}% (3× your risk/trade)', 'ARMED 🛡️', const Color(0xFF00FF88)),
-          const Divider(color: MehdAiTheme.borderColor, height: 16),
-          _buildRiskRuleRow('NEWS BLACKOUT SHIELD', 'Pauses execution 30 min before high-impact news (NFP / CPI / FOMC)', 'ACTIVE 📰', const Color(0xFF58A6FF)),
-          const Divider(color: MehdAiTheme.borderColor, height: 16),
-          // Reads from settings.defaultStopLoss
-          _buildRiskRuleRow('SPREAD SPIKE GUARD', 'Rejects trade if broker spread exceeds ${(stopLossPips * 1.25).toStringAsFixed(1)} pips (125% of your SL)', 'ARMED 📏', MehdAiTheme.gold),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRiskRuleRow(String name, String desc, String status, Color color) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(name, style: GoogleFonts.outfit(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 2),
-              Text(desc, style: GoogleFonts.inter(color: MehdAiTheme.textSecondary, fontSize: 10)),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: color.withOpacity(0.3)),
-          ),
-          child: Text(status, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
-        ),
-      ],
-    );
+    return CommandTabRiskRulesCard(riskPct: riskPct, stopLossPips: stopLossPips);
   }
 
   // ── 6. EXECUTION LOG ──────────────────────────────────────────────────────
   Widget _buildExecutionLogCard(TradingController trading) {
-    // If no real log entries yet, show seed entries so screen doesn't look empty
-    final List<Map<String, dynamic>> displayLog = _executionLog.isNotEmpty
-        ? _executionLog
-        : [
-            {'time': '--:--:--', 'event': 'Autopilot swarm monitoring 24/5 — awaiting qualifying signal', 'status': 'WATCHING', 'color': const Color(0xFF58A6FF)},
-            {'time': '--:--:--', 'event': 'Sentinel risk rules armed and active', 'status': 'ARMED', 'color': const Color(0xFF00FF88)},
-          ];
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: MehdAiTheme.borderColor),
-      ),
-      child: Column(
-        children: displayLog.map((log) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                Text(log['time'] as String, style: GoogleFonts.jetBrainsMono(color: Colors.white38, fontSize: 10)),
-                const SizedBox(width: 10),
-                Expanded(child: Text(log['event'] as String, style: GoogleFonts.inter(color: Colors.white70, fontSize: 11))),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: (log['color'] as Color).withOpacity(0.12), borderRadius: BorderRadius.circular(3)),
-                  child: Text(log['status'] as String, style: TextStyle(color: log['color'] as Color, fontSize: 8, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
+    return CommandTabExecutionLog(trading: trading);
   }
 }

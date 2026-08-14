@@ -45,6 +45,9 @@ See our Privacy Policy for details on how your data is collected, stored, and us
 
 8. GOVERNING LAW
 These terms are governed by the laws of the jurisdiction in which the user operates. Users are responsible for ensuring compliance with local financial regulations.
+
+9. CALCULATIONS & ALGORITHMIC ESTIMATIONS DISCLAIMER
+All position sizing, pip value, margin, drawdown, technical indicator (RSI, ATR, SMA), and backtesting calculations provided by Mehd AI are algorithmic estimations for decision-support and educational purposes. Market conditions such as broker slippage, floating spreads, liquidity gaps, swap rates, and exchange rate fluctuations may cause actual broker execution values to differ from calculated estimations. Mehd AI is not responsible for execution discrepancies, broker-side slippage, or calculation variances resulting from dynamic market feeds.
 ''',
           style: MehdAiTheme.terminalStyle.copyWith(
             fontSize: 12,

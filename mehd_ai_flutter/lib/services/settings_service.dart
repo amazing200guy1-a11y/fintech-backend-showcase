@@ -52,6 +52,7 @@ class SettingsService extends ChangeNotifier {
   bool _paperMode = true;
   bool _autopilotEngaged = true;   // Autopilot Command Center master switch
   bool _alphaPredatorMode = false; // 1.5x lot size boost on ≥92% conviction
+  bool _tigerMode = false;          // Zero-latency institutional broker gateway
   String _language = 'English';
   double _convictionThreshold = 75.0;
   double _defaultLotSize = 1.00;
@@ -71,9 +72,13 @@ class SettingsService extends ChangeNotifier {
   bool get paperMode => _paperMode;
   bool get autopilotEngaged => _autopilotEngaged;
   bool get alphaPredatorMode => _alphaPredatorMode;
+  bool get tigerMode => _tigerMode;
   String get language => _language;
   double get convictionThreshold => _convictionThreshold;
   double get defaultLotSize => _defaultLotSize;
+
+  /// Subscription tier label. Defaults to 'PRO' until the billing system is wired in.
+  String get tierName => 'PRO';
 
   String _profileName = 'Trader';
   int _maxDailyTrades = 3;
@@ -89,6 +94,23 @@ class SettingsService extends ChangeNotifier {
   String get connectedBrokerId => _connectedBrokerId;
   String get connectedBrokerType => _connectedBrokerType;
   bool get hasBrokerConnected => _connectedBrokerId.isNotEmpty;
+
+  // Unbypassable 24h Equity Shield Lockout Timestamp (epoch ms)
+  int _equityShieldLockUntil = 0;
+
+  bool get isEquityShieldLocked => DateTime.now().millisecondsSinceEpoch < _equityShieldLockUntil;
+  
+  double get equityShieldHoursRemaining {
+    if (!isEquityShieldLocked) return 0.0;
+    final diff = _equityShieldLockUntil - DateTime.now().millisecondsSinceEpoch;
+    return diff / (1000 * 60 * 60);
+  }
+
+  void armEquityShield24h() {
+    _equityShieldLockUntil = DateTime.now().millisecondsSinceEpoch + (24 * 60 * 60 * 1000);
+    _save('shieldLockUntil', _equityShieldLockUntil);
+    notifyListeners();
+  }
 
   double get accountBalance => _accountBalance;
   double get riskPerTrade => _riskPerTrade;
@@ -133,6 +155,7 @@ class SettingsService extends ChangeNotifier {
     _paperMode          = (cloud['paper']           as bool?)   ?? p.getBool('paper')           ?? true;
     _autopilotEngaged   = (cloud['autopilotEngaged'] as bool?)  ?? p.getBool('autopilotEngaged') ?? true;
     _alphaPredatorMode  = (cloud['alphaPredator']   as bool?)   ?? p.getBool('alphaPredator')   ?? false;
+    _tigerMode          = (cloud['tigerMode']       as bool?)   ?? p.getBool('tigerMode')       ?? false;
     _language           = (cloud['language']        as String?) ?? p.getString('language')      ?? 'English';
     _convictionThreshold= (cloud['conviction']      as num?)?.toDouble() ?? p.getDouble('conviction')    ?? 75.0;
     _defaultLotSize     = ((cloud['defaultLotSize']  as num?)?.toDouble() ?? p.getDouble('defaultLotSize')  ?? 1.00).clamp(0.01, 10.0);
@@ -144,6 +167,7 @@ class SettingsService extends ChangeNotifier {
     _defaultLeverage    = (cloud['defaultLeverage'] as num?)?.toDouble() ?? p.getDouble('defaultLeverage') ?? 100.0;
     _connectedBrokerId  = (cloud['connectedBroker'] as String?) ?? p.getString('connectedBroker') ?? '';
     _connectedBrokerType= (cloud['connectedBrokerType'] as String?) ?? p.getString('connectedBrokerType') ?? '';
+    _equityShieldLockUntil = (cloud['shieldLockUntil'] as num?)?.toInt() ?? p.getInt('shieldLockUntil') ?? 0;
 
     // ── 3. Write cloud values back to local cache (keeps device in sync) ───
     if (cloud.isNotEmpty) {
@@ -241,6 +265,12 @@ class SettingsService extends ChangeNotifier {
   Future<void> setAlphaPredatorMode(bool v) async {
     _alphaPredatorMode = v;
     await _save('alphaPredator', v);
+  }
+
+  Future<void> setTigerMode(bool v) async {
+    _tigerMode = v;
+    notifyListeners();
+    await _save('tigerMode', v);
   }
 
   Future<void> setLanguage(String lang) async {

@@ -28,4 +28,4 @@ async def _call_llama(symbol: str, snapshot: MarketSnapshot, client: httpx.Async
     )
     resp.raise_for_status()
     text = resp.json()["choices"][0]["message"]["content"]
-    return _parse_llm_json(text, "llama", snapshot.id)
+    return _parse_llm_json(text, "llama-3.1-70b", snapshot.id)

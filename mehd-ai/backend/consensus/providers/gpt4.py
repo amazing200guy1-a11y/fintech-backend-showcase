@@ -28,4 +28,4 @@ async def _call_gpt4(symbol: str, snapshot: MarketSnapshot, client: httpx.AsyncC
     )
     resp.raise_for_status()
     text = resp.json()["choices"][0]["message"]["content"]
-    return _parse_llm_json(text, "gpt-4", snapshot.id)
+    return _parse_llm_json(text, "gpt-4o", snapshot.id)

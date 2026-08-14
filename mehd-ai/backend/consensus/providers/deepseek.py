@@ -28,4 +28,4 @@ async def _call_deepseek(symbol: str, snapshot: MarketSnapshot, client: httpx.As
     )
     resp.raise_for_status()
     text = resp.json()["choices"][0]["message"]["content"]
-    return _parse_llm_json(text, "deepseek", snapshot.id)
+    return _parse_llm_json(text, "deepseek-chat", snapshot.id)

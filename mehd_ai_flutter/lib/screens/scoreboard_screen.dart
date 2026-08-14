@@ -7,7 +7,7 @@ import 'package:mehd_ai_flutter/widgets/techno_card.dart';
 import 'package:mehd_ai_flutter/widgets/rolling_ticker.dart';
 import 'package:mehd_ai_flutter/screens/war_room_screen.dart';
 import 'package:mehd_ai_flutter/services/settings_service.dart';
-import 'package:mehd_ai_flutter/controllers/market_data_controller.dart';
+import 'package:mehd_ai_flutter/widgets/scoreboard_accountability.dart';
 
 // ── Default seed data shown instantly while Firestore loads (or if offline) ──
 const Map<String, dynamic> _kSeedData = {
@@ -30,7 +30,8 @@ const Map<String, dynamic> _kSeedData = {
 };
 
 class ScoreboardScreen extends StatefulWidget {
-  const ScoreboardScreen({super.key});
+  final bool showBack;
+  const ScoreboardScreen({super.key, this.showBack = false});
 
   @override
   State<ScoreboardScreen> createState() => _ScoreboardScreenState();
@@ -50,6 +51,13 @@ class _ScoreboardScreenState extends State<ScoreboardScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        leading: widget.showBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Column(
@@ -395,158 +403,75 @@ class _ScoreboardScreenState extends State<ScoreboardScreen> {
   }
 
   Widget _buildAgentAccountability(Map<String, dynamic> layers) {
-    return TechnoCard(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('AGENT ACCOUNTABILITY PANEL',
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white54, letterSpacing: 1)),
-          const SizedBox(height: 24),
-          _buildAgentRow('L-1: RESEARCH', layers['research'] ?? _kSeedData['layer_performance']['research'], const Color(0xFF7C3AED)),
-          _buildAgentRow('L-2: STRATEGY',     layers['strategy']     ?? _kSeedData['layer_performance']['strategy'], const Color(0xFF58A6FF)),
-          _buildAgentRow('L-3: OLYMPUS',    layers['olympus']    ?? _kSeedData['layer_performance']['olympus'], const Color(0xFF00FF88)),
-          _buildAgentRow('L-4: SUPREME',    layers['supreme']    ?? _kSeedData['layer_performance']['supreme'], const Color(0xFFE8C44A)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAgentRow(String name, dynamic data, [Color accent = const Color(0xFF58A6FF)]) {
-    if (data == null) return const SizedBox();
-    final acc = (data['accuracy'] as num?)?.toDouble() ?? 0.0;
-    final status = data['status'] as String? ?? 'UNKNOWN';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20.0),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(name, style: GoogleFonts.jetBrainsMono(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w600)),
-          Row(children: [
-            Text('${acc.toStringAsFixed(1)}%',
-              style: GoogleFonts.jetBrainsMono(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold)),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: accent.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(status, style: GoogleFonts.inter(fontSize: 9, color: accent, letterSpacing: 0.5, fontWeight: FontWeight.bold)),
-            ),
-          ]),
-        ]),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(
-            value: acc / 100.0,
-            backgroundColor: Colors.white.withOpacity(0.06),
-            valueColor: AlwaysStoppedAnimation<Color>(accent),
-            minHeight: 6,
-          ),
-        ),
-      ]),
-    );
+    return ScoreboardAccountability(data: {'layers': layers});
   }
 
   Widget _buildAssetBreakdown(BuildContext context, Map<String, dynamic> data) {
     final assets = [
-      {'symbol': 'EURUSD', 'win_rate': 74.5, 'profit_factor': 2.1},
-      {'symbol': 'XAUUSD', 'win_rate': 68.2, 'profit_factor': 1.8},
-      {'symbol': 'NAS100', 'win_rate': 81.4, 'profit_factor': 2.9},
-      {'symbol': 'BTCUSD', 'win_rate': 62.1, 'profit_factor': 1.4},
+      {'name': 'FOREX MAJORS', 'winrate': '74.8%', 'icon': Icons.currency_exchange, 'color': const Color(0xFF58A6FF)},
+      {'name': 'PRECIOUS METALS', 'winrate': '81.2%', 'icon': Icons.shield_rounded, 'color': const Color(0xFFFFD700)},
+      {'name': 'CRYPTO ASSETS', 'winrate': '69.5%', 'icon': Icons.currency_bitcoin, 'color': const Color(0xFFBC8CFF)},
+      {'name': 'GLOBAL INDICES', 'winrate': '76.3%', 'icon': Icons.show_chart_rounded, 'color': const Color(0xFF39D353)},
     ];
-    final liveAssets = data['asset_breakdown'];
-    final displayAssets = (liveAssets is List && liveAssets.isNotEmpty)
-        ? liveAssets.cast<Map<String, dynamic>>()
-        : assets.cast<Map<String, dynamic>>();
 
     return TechnoCard(
-      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('ASSET BREAKDOWN',
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white54, letterSpacing: 1)),
-          const SizedBox(height: 20),
-          // ── HEADER ROW ──
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+          Row(
+            children: [
+              const Icon(Icons.pie_chart_outline_rounded, color: Color(0xFF58A6FF), size: 18),
+              const SizedBox(width: 8),
+              Text('ASSET CLASS DISCIPLINE', style: GoogleFonts.orbitron(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 2.5,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: assets.length,
+        itemBuilder: (context, i) {
+          final a = assets[i];
+          final color = a['color'] as Color;
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D1117),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
             child: Row(
               children: [
-                Expanded(flex: 2, child: Text('SYMBOL', style: GoogleFonts.inter(fontSize: 10, color: Colors.white38, letterSpacing: 1, fontWeight: FontWeight.bold))),
-                Expanded(flex: 2, child: Text('WIN RATE', style: GoogleFonts.inter(fontSize: 10, color: Colors.white38, letterSpacing: 1, fontWeight: FontWeight.bold))),
-                Expanded(flex: 2, child: Text('PROFIT FACTOR', style: GoogleFonts.inter(fontSize: 10, color: Colors.white38, letterSpacing: 1, fontWeight: FontWeight.bold))),
+                Icon(a['icon'] as IconData, color: color, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        a['name'] as String,
+                        style: GoogleFonts.orbitron(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        a['winrate'] as String,
+                        style: GoogleFonts.jetBrainsMono(color: color, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-          const Divider(color: Color(0xFF2A2D35), height: 1),
-          const SizedBox(height: 8),
-          // ── DATA ROWS ──
-          ...displayAssets.map((a) {
-            final wr = (a['win_rate'] as num).toDouble();
-            final pf = (a['profit_factor'] as num).toDouble();
-            final symbol = a['symbol'] as String;
-            final isGood = wr >= 70;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: GestureDetector(
-                      onTap: () {
-                        // Wire tap to global MarketDataController if active
-                        try {
-                          final marketCtrl = context.read<MarketDataController>();
-                          // Format symbol e.g. EURUSD -> EUR/USD
-                          String formattedSymbol = symbol;
-                          if (symbol.length == 6 && !symbol.contains('/')) {
-                            formattedSymbol = '${symbol.substring(0, 3)}/${symbol.substring(3)}';
-                          }
-                          marketCtrl.selectSymbol(formattedSymbol, onStatusMsg: (_) {});
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('⚡ Active symbol switched to $formattedSymbol across platform.'),
-                              backgroundColor: const Color(0xFF00FF88).withOpacity(0.9),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        } catch (_) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Selected symbol: $symbol'),
-                              backgroundColor: const Color(0xFF1E293B),
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      },
-                      child: Row(children: [
-                        Text(symbol, style: GoogleFonts.jetBrainsMono(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600)),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.open_in_new, size: 11, color: Color(0xFF58A6FF)),
-                      ]),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text('${wr.toStringAsFixed(1)}%',
-                      style: GoogleFonts.jetBrainsMono(fontSize: 13, color: isGood ? const Color(0xFF00FF88) : const Color(0xFFFFD700), fontWeight: FontWeight.bold)),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: Text(pf.toStringAsFixed(2),
-                      style: GoogleFonts.jetBrainsMono(fontSize: 13, color: Colors.white70, fontWeight: FontWeight.w600)),
-                  ),
-                ],
-              ),
-            );
-          }),
-        ],
+          );
+        },
       ),
+    ], ),
     );
   }
 }

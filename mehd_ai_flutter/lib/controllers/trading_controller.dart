@@ -74,6 +74,19 @@ class TradingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void closePositionBySymbol(String symbol) {
+    final symClean = symbol.replaceAll('/', '').toUpperCase();
+    activePositions.removeWhere((pos) {
+      final posSym = (pos['symbol'] as String? ?? '').replaceAll('/', '').toUpperCase();
+      return posSym == symClean;
+    });
+    if (activePositions.isEmpty) {
+      _volatilityTimer?.cancel();
+      _volatilityTimer = null;
+    }
+    notifyListeners();
+  }
+
   void closePartialPosition(String id, double ratio) {
     final idx = activePositions.indexWhere((pos) => pos['id'] == id);
     if (idx != -1) {
@@ -81,16 +94,64 @@ class TradingController extends ChangeNotifier {
       final currentLot = (pos['lotSize'] as num).toDouble();
       final currentPnl = (pos['pnl'] as num).toDouble();
       
-      final newLot = currentLot * (1 - ratio);
-      if (newLot <= 0.01) {
+      // Institutional Micro-Lot Rounding (0.01 Step size)
+      final closedLots = ((currentLot * ratio * 100).floorToDouble()) / 100.0;
+      final remainingLot = ((currentLot - closedLots) * 100).roundToDouble() / 100.0;
+
+      if (remainingLot < 0.01 || closedLots <= 0.0) {
         closePosition(id);
       } else {
-        pos['lotSize'] = newLot;
-        pos['pnl'] = currentPnl * (1 - ratio);
+        final closedRatio = closedLots / currentLot;
+        pos['lotSize'] = remainingLot;
+        pos['pnl'] = currentPnl * (1 - closedRatio);
         pos['partialBanked'] = true;
         notifyListeners();
       }
     }
+  }
+
+  void closePartialAll(double ratio) {
+    if (activePositions.isEmpty) return;
+    for (int i = activePositions.length - 1; i >= 0; i--) {
+      final pos = activePositions[i];
+      final currentLot = (pos['lotSize'] as num).toDouble();
+      final currentPnl = (pos['pnl'] as num).toDouble();
+
+      // Institutional Micro-Lot Rounding (0.01 Step size)
+      final closedLots = ((currentLot * ratio * 100).floorToDouble()) / 100.0;
+      final remainingLot = ((currentLot - closedLots) * 100).roundToDouble() / 100.0;
+
+      if (remainingLot < 0.01 || closedLots <= 0.0) {
+        activePositions.removeAt(i);
+      } else {
+        final closedRatio = closedLots / currentLot;
+        pos['lotSize'] = remainingLot;
+        pos['pnl'] = currentPnl * (1 - closedRatio);
+        pos['partialBanked'] = true;
+      }
+    }
+    if (activePositions.isEmpty) {
+      _volatilityTimer?.cancel();
+      _volatilityTimer = null;
+    }
+    notifyListeners();
+  }
+
+  void setTrailingSLAll(double pips) {
+    for (var pos in activePositions) {
+      pos['trailingPips'] = pips;
+      pos['isTrailingActive'] = true;
+      pos['isBreakevenArmed'] = true;
+    }
+    notifyListeners();
+  }
+
+  void setBreakevenAll() {
+    for (var pos in activePositions) {
+      pos['sl'] = pos['entry'];
+      pos['isBreakevenArmed'] = true;
+    }
+    notifyListeners();
   }
 
   void setBreakevenSL(String id) {

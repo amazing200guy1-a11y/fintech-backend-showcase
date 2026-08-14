@@ -284,6 +284,33 @@ class MarketDataController extends ChangeNotifier {
 
   void setActiveTool(String tool) {
     activeTool = activeTool == tool ? 'none' : tool;
+    if (activeTool != 'none' && latestSnapshot != null) {
+      final base = latestSnapshot!.close;
+      double targetPrice = base;
+      String label = 'Support';
+      String color = '#00FF88';
+      
+      if (tool == 'support') {
+        targetPrice = base - (base * 0.0012);
+        label = 'MANUAL SUPPORT';
+        color = '#00FF88';
+      } else if (tool == 'resistance') {
+        targetPrice = base + (base * 0.0012);
+        label = 'MANUAL RESISTANCE';
+        color = '#FF3B3B';
+      } else if (tool == 'trendline') {
+        targetPrice = base;
+        label = 'MANUAL TRENDLINE';
+        color = '#58A6FF';
+      }
+
+      aiCommands.add({
+        'action': 'draw_line',
+        'price': targetPrice,
+        'color': color,
+        'label': label,
+      });
+    }
     notifyListeners();
   }
 

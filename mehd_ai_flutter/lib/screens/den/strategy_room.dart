@@ -7,6 +7,7 @@ import 'package:mehd_ai_flutter/widgets/den_loading_widget.dart';
 import 'package:mehd_ai_flutter/core/den_identity.dart';
 import 'package:mehd_ai_flutter/widgets/glass_agent_card.dart';
 import 'package:mehd_ai_flutter/widgets/techno_card.dart';
+import 'package:mehd_ai_flutter/widgets/shimmer_skeleton.dart';
 
 /// FILE — strategy_room.dart
 ///
@@ -92,10 +93,7 @@ class _StrategyRoomState extends State<StrategyRoom> {
         if (widget.consensusResult != null) DenVerdictCard(consensus: widget.consensusResult!),
         _buildRoomHeader(),
         if (_isLoadingSpecialized)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: MehdAiTheme.blue)),
-          )
+          const RoomCardSkeleton()
         else if (_specializedResponse != null)
           _buildSpecializedCard(),
         const SizedBox(height: 24),
@@ -154,7 +152,7 @@ class _StrategyRoomState extends State<StrategyRoom> {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  'TECHNICAL STRATEGY', 
+                  'AGENT STRATEGY ROOM', 
                   style: MehdAiTheme.headingStyle,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -173,6 +171,7 @@ class _StrategyRoomState extends State<StrategyRoom> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildEmptyState() {
     return Center(
       child: Column(

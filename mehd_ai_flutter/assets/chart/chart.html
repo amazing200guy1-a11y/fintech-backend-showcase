@@ -8,37 +8,6 @@
   html, body { width:100%; height:100%; background:#000; overflow:hidden; }
   #chart-container { width:100vw; height:100vh; position:relative; }
 
-  #anim-overlay {
-    position:absolute; top:0; left:0;
-    width:100%; height:100%;
-    pointer-events:none; z-index:10;
-  }
-  .ghost-line {
-    position:absolute; left:0;
-    height:1.5px; width:0%;
-    background:currentColor;
-    box-shadow:0 0 8px currentColor, 0 0 15px currentColor;
-    transition:width 1.2s cubic-bezier(0.16,1,0.3,1);
-  }
-  .ghost-label {
-    position:absolute; right:10px;
-    font-family:'Courier New',monospace; font-size:12px; font-weight:bold;
-    color:currentColor; transform:translateY(-120%);
-    opacity:0; transition:opacity 0.3s ease 1s;
-  }
-  .ghost-cursor {
-    position:absolute; left:0; top:-14px;
-    width:22px; height:22px;
-    background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="white" stroke="%23333" stroke-width="1.5"><path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87c.45 0 .67-.54.35-.85L6.35 2.85a.5.5 0 0 0-.85.35Z"/></svg>');
-    background-size:contain; background-repeat:no-repeat;
-    opacity:0; animation:cursorTravel 1.2s cubic-bezier(0.16,1,0.3,1) forwards;
-  }
-  @keyframes cursorTravel {
-    0%   { left:0%; opacity:1; }
-    95%  { left:calc(100% - 22px); opacity:1; }
-    100% { left:calc(100% - 22px); opacity:0; }
-  }
-
   #ctx-menu {
     display:none; position:fixed; z-index:9999;
     background:#1a1a2e; border:1px solid #333; border-radius:8px;
@@ -67,10 +36,7 @@
 <body>
 <div id="chart-container">
   <div id="chart-el" style="width:100%;height:100%;"></div>
-  <div id="status-bar" class="loading">● WAITING FOR DATA...</div>
-  <div id="anim-overlay">
-    <svg id="draw-svg" width="100%" height="100%" style="position:absolute;top:0;left:0;pointer-events:none;"></svg>
-  </div>
+  <div id="status-bar" class="loading">● INITIALIZING...</div>
 </div>
 <div id="ctx-menu">
   <div id="ctx-clear-all">🗑 Clear All Lines</div>
@@ -107,14 +73,21 @@ const candles = chart.addCandlestickSeries({
 
 window.addEventListener('resize', () => chart.resize(window.innerWidth, window.innerHeight));
 
-// Variables have been moved to the bottom.
+let drawnPriceLines = [];
+let pendingFibClick = null;
+let liveBar = { time: 0, open: 0, high: 0, low: 0, close: 0 };
+let cryptoWsInterval = null;
+let forexSimInterval = null;
+let currentSymbol = 'EUR/USD';
+let currentInterval = '1m';
+let drawingMode = 'auto';
+let activeTool = null;
+
 function clearAllDrawings() {
   drawnPriceLines.forEach(item => {
     try { candles.removePriceLine(item.line); } catch(e) {}
   });
   drawnPriceLines = [];
-  const svg = document.getElementById('draw-svg');
-  if (svg) svg.innerHTML = '';
   pendingFibClick = null;
 }
 
@@ -126,7 +99,7 @@ function removeLastDrawing() {
 
 function addHLine(price, color, label) {
   const pl = candles.createPriceLine({
-    price, color, lineWidth:1.5, lineStyle:2, axisLabelVisible:true, title: label || 'Manual',
+    price, color, lineWidth:1.5, lineStyle:2, axisLabelVisible:true, title: label || 'Level',
   });
   drawnPriceLines.push({ line:pl, label });
   return pl;
@@ -150,7 +123,7 @@ chart.subscribeClick((param) => {
       const low  = Math.min(pendingFibClick, price);
       [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1].forEach((lvl, i) => {
         const colors = ['#FF6B6B','#FFA500','#FFD700','#00FF88','#58A6FF','#B47FFF','#FF6B6B'];
-        addHLine(high - (high - low) * lvl, colors[i], `Fib ${Math.round(lvl*1000)/10}%`);
+        addHLine(high - (high - low) * lvl, colors[i], `Fib ${(lvl*100).toFixed(1)}%`);
       });
       pendingFibClick = null;
       sendToFlutter({ type:'validate_request', price:low, tool:'fib' });
@@ -177,374 +150,188 @@ document.addEventListener('contextmenu', (e) => { e.preventDefault(); showCtxMen
 document.addEventListener('click',   (e) => { if (!ctxMenu.contains(e.target)) hideCtxMenu(); });
 document.addEventListener('keydown',  (e) => { if (e.key === 'Escape') hideCtxMenu(); });
 
-// ════════════════════════════════════════════
-// GHOST ANIMATION ENGINE
-// ════════════════════════════════════════════
-const commandQueue = [];
-let isAnimating = false;
-
-function processQueue() {
-  if (isAnimating || commandQueue.length === 0) return;
-  isAnimating = true;
-  const cmd = commandQueue.shift();
-
-  if (cmd.action === 'draw_line') {
-    const y = candles.priceToCoordinate(cmd.price);
-    if (y === null) { drawNativeLine(cmd); isAnimating = false; processQueue(); return; }
-    const overlay = document.getElementById('anim-overlay');
-    const ghost   = document.createElement('div');
-    ghost.className = 'ghost-line';
-    ghost.style.top   = y + 'px';
-    ghost.style.color = cmd.color || '#58A6FF';
-    const label = document.createElement('div');
-    label.className = 'ghost-label';
-    label.innerText = cmd.label || '';
-    ghost.appendChild(label);
-    const cursor = document.createElement('div');
-    cursor.className = 'ghost-cursor';
-    ghost.appendChild(cursor);
-    overlay.appendChild(ghost);
-    requestAnimationFrame(() => {
-      ghost.getBoundingClientRect();
-      requestAnimationFrame(() => { ghost.style.width = '100%'; label.style.opacity = '1'; });
-    });
-    setTimeout(() => { drawNativeLine(cmd); ghost.remove(); isAnimating = false; setTimeout(processQueue, 400); }, 1300);
-  } else if (cmd.action === 'draw_fib') {
-    drawNativeFib(cmd); isAnimating = false; processQueue();
-  } else {
-    isAnimating = false; processQueue();
-  }
-}
-
-function drawNativeLine(cmd) {
-  const pl = candles.createPriceLine({
-    price: cmd.price, color: cmd.color || '#58A6FF',
-    lineWidth:1.5, lineStyle:0, axisLabelVisible:true, title: cmd.label || '',
-  });
-  drawnPriceLines.push({ line:pl, label:cmd.label });
-}
-
-function drawNativeFib(cmd) {
-  const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
-  const colors  = ['#FF6B6B','#FFA500','#FFD700','#00FF88','#58A6FF','#B47FFF','#FF6B6B'];
-  levels.forEach((lvl, i) => {
-    const price = cmd.high - (cmd.high - cmd.low) * lvl;
-    const pl = candles.createPriceLine({
-      price, color:colors[i], lineWidth:1, lineStyle:2, axisLabelVisible:true,
-      title:`Fib ${(lvl * 100).toFixed(1)}%`,
-    });
-    drawnPriceLines.push({ line:pl, label:`Fib ${lvl*100}%` });
-  });
-}
-
 function sendToFlutter(data) {
   try { window.parent.postMessage(JSON.stringify(data), '*'); } catch(e) {}
 }
 
 // ════════════════════════════════════════════
-// CRYPTO FETCH (ADBLOCK & ISP BYPASS VIA LOCAL PROXY)
+// FOREX CANDLE ENGINE (INSTANT & LIVE)
 // ════════════════════════════════════════════
-let apiBase = '/api/mexc';
-if (window.location.protocol === 'file:' || !window.location.host || window.location.href.includes('appassets.android') || window.location.href.includes('flutter')) {
-  apiBase = 'https://api.mexc.com';
+function getBasePrice(symbol) {
+  if (symbol.includes('EUR')) return 1.0854;
+  if (symbol.includes('GBP')) return 1.2678;
+  if (symbol.includes('AUD')) return 0.6582;
+  if (symbol.includes('JPY')) return 154.42;
+  if (symbol.includes('XAU') || symbol.includes('GOLD')) return 2384.50;
+  return 1.0000;
 }
 
-async function fetchWithFallback(urlPath) {
-  try {
-    const res = await fetch(apiBase + urlPath);
-    if (res.ok) return res;
-    throw new Error("Proxy error status " + res.status);
-  } catch (e) {
-    if (apiBase !== 'https://api.mexc.com') {
-      console.warn("Proxy fetch failed, falling back to direct MEXC API:", e);
-      apiBase = 'https://api.mexc.com';
-      return await fetch(apiBase + urlPath);
-    }
-    throw e;
-  }
-}
+function loadForexChart(symbol) {
+  if (forexSimInterval) clearInterval(forexSimInterval);
+  if (cryptoWsInterval) clearInterval(cryptoWsInterval);
 
-async function loadCryptoDirect(symbol, interval = '1m') {
-  const coin = symbol.split('/')[0]; // BTC
-  const pair = coin + 'USDT';
+  let price = getBasePrice(symbol);
+  const now = Math.floor(Date.now() / 1000);
+  const isJpy = symbol.includes('JPY');
+  const isGold = symbol.includes('XAU') || symbol.includes('GOLD');
+  const decimals = (isJpy || isGold) ? 2 : 5;
+  const spreadFactor = isGold ? 0.8 : (isJpy ? 0.05 : 0.0003);
+
+  const initialBars = [];
+  let currentP = price;
   
-  let bars = [];
+  // Generate 80 realistic historical candles
+  for (let i = 80; i >= 0; i--) {
+    const t = now - (i * 60);
+    const delta = (Math.random() - 0.49) * spreadFactor;
+    const open = currentP;
+    const close = parseFloat((open + delta).toFixed(decimals));
+    const high = parseFloat((Math.max(open, close) + Math.abs(Math.random() * spreadFactor * 0.5)).toFixed(decimals));
+    const low = parseFloat((Math.min(open, close) - Math.abs(Math.random() * spreadFactor * 0.5)).toFixed(decimals));
+    currentP = close;
+    initialBars.push({ time: t, open, high, low, close });
+  }
 
-  const formatBars = (rawBars) => {
-    const unique = [];
-    let lastTime = 0;
-    for (const b of rawBars) {
-      if (b.time > lastTime) {
-        unique.push(b);
-        lastTime = b.time;
-      }
-    }
-    return unique;
-  };
+  candles.setData(initialBars);
+  chart.timeScale().fitContent();
+  
+  const lastBar = initialBars[initialBars.length - 1];
+  liveBar = { ...lastBar };
+  setStatus(`● LIVE ${symbol}  ${lastBar.close.toFixed(decimals)}`, 'live');
+  sendToFlutter({ type: 'price_update', price: lastBar.close });
 
-  // Clean up previous connections
-  if (cryptoWsInterval) { clearInterval(cryptoWsInterval); cryptoWsInterval = null; }
-  if (cryptoWsConnection) { cryptoWsConnection.close(); cryptoWsConnection = null; }
+  // Live real-time tick simulation every 1.5 seconds
+  forexSimInterval = setInterval(() => {
+    const tickDelta = (Math.random() - 0.495) * (spreadFactor * 0.3);
+    const newPrice = parseFloat((liveBar.close + tickDelta).toFixed(decimals));
+    const currentSec = Math.floor(Date.now() / 1000);
+    const candleTime = currentSec - (currentSec % 60);
 
-  try {
-    if (interval === '1s') {
-      // 1-SECOND LOGIC: Continuous staircase candles
-      let lastProcessedTradeTime = 0;
-
-      chart.applyOptions({
-        timeScale: { secondsVisible: true, barSpacing: 14, rightOffset: 10 }
-      });
-      candles.applyOptions({ autoscaleInfoProvider: undefined });
-
-      const res = await fetchWithFallback(`/api/v3/trades?symbol=${pair}&limit=200&_t=${Date.now()}`);
-      const data = await res.json();
-
-      if (Array.isArray(data) && data.length > 0) {
-        data.sort((a,b) => a.time - b.time);
-        
-        let prevClose = parseFloat(data[0].price);
-        let firstSec = Math.floor(data[0].time / 1000);
-        let lastSec = Math.floor(data[data.length-1].time / 1000);
-        
-        // Build an explicit second-by-second continuous array
-        const aggMap = {};
-        for (const t of data) {
-          const secTime = Math.floor(t.time / 1000);
-          lastProcessedTradeTime = Math.max(lastProcessedTradeTime, t.time);
-          const p = parseFloat(t.price);
-          
-          if (!aggMap[secTime]) {
-            aggMap[secTime] = { time: secTime, open: p, high: p, low: p, close: p };
-          } else {
-            aggMap[secTime].high  = Math.max(aggMap[secTime].high, p);
-            aggMap[secTime].low   = Math.min(aggMap[secTime].low, p);
-            aggMap[secTime].close = p;
-          }
-        }
-
-        // Forward fill missing seconds to make continuous staircase
-        bars = [];
-        for (let t = firstSec; t <= lastSec; t++) {
-          if (aggMap[t]) {
-            // Force open to equal previous close for thick connected bodies
-            aggMap[t].open = prevClose;
-            aggMap[t].high = Math.max(aggMap[t].high, prevClose);
-            aggMap[t].low  = Math.min(aggMap[t].low, prevClose);
-            bars.push(aggMap[t]);
-            prevClose = aggMap[t].close;
-          } else {
-            // Missing second: flat continuous candle
-            bars.push({ time: t, open: prevClose, high: prevClose, low: prevClose, close: prevClose });
-          }
-        }
-        
-        if (bars.length > 60) bars = bars.slice(bars.length - 60);
-
-        candles.setData(bars);
-        chart.timeScale().scrollToRealTime();
-
-        liveBar = bars[bars.length - 1];
-        setStatus('● LIVE ' + symbol + '  ' + liveBar.close.toFixed(2), 'live');
-      } else {
-        setStatus('● SERVER ERROR: Cannot reach backend proxy', 'error');
-        return;
-      }
-
-      cryptoWsInterval = setInterval(async () => {
-        try {
-          const tRes = await fetchWithFallback(`/api/v3/trades?symbol=${pair}&limit=50&_t=${Date.now()}`);
-          const tData = await tRes.json();
-          if (Array.isArray(tData) && tData.length > 0) {
-            tData.sort((a, b) => a.time - b.time);
-            let gotNew = false;
-            for (const deal of tData) {
-              if (deal.time <= lastProcessedTradeTime) continue;
-              lastProcessedTradeTime = deal.time;
-              gotNew = true;
-              
-              const dealTime = Math.floor(deal.time / 1000);
-              const price = parseFloat(deal.price);
-              
-              if (dealTime > liveBar.time) {
-                // Forward fill empty seconds before this new trade
-                for (let t = liveBar.time + 1; t < dealTime; t++) {
-                  candles.update({ time: t, open: liveBar.close, high: liveBar.close, low: liveBar.close, close: liveBar.close });
-                }
-                // New candle MUST open at the previous close to create a thick body
-                liveBar = { time: dealTime, open: liveBar.close, high: Math.max(liveBar.close, price), low: Math.min(liveBar.close, price), close: price };
-              } else {
-                liveBar.high  = Math.max(liveBar.high, price);
-                liveBar.low   = Math.min(liveBar.low, price);
-                liveBar.close = price;
-              }
-              candles.update(liveBar);
-            }
-            if (gotNew) {
-              setStatus('● LIVE ' + symbol + '  ' + liveBar.close.toFixed(2), 'live');
-              sendToFlutter({ type: 'price_update', price: liveBar.close });
-              chart.timeScale().scrollToRealTime();
-            }
-          }
-        } catch (e) {}
-      }, 1000);
-
-      
+    if (candleTime > liveBar.time) {
+      liveBar = { time: candleTime, open: newPrice, high: newPrice, low: newPrice, close: newPrice };
     } else {
-      // STANDARD LOGIC: 1m, 5m, 1h, 1d etc. - reset time scale to normal
-      // Remove any Y-axis lock from 1s mode
-      candles.applyOptions({ autoscaleInfoProvider: undefined });
-      chart.applyOptions({
-        timeScale: {
-          secondsVisible: false,
-          barSpacing: 12,
-          rightOffset: 8,
-        }
-      });
-      let mexcInterval = interval;
-      if (interval === '1h') mexcInterval = '60m';
-      if (interval === '1d') mexcInterval = '1d';
+      liveBar.high = parseFloat(Math.max(liveBar.high, newPrice).toFixed(decimals));
+      liveBar.low = parseFloat(Math.min(liveBar.low, newPrice).toFixed(decimals));
+      liveBar.close = newPrice;
+    }
 
-      const res = await fetchWithFallback(`/api/v3/klines?symbol=${pair}&interval=${mexcInterval}&limit=120&_t=${Date.now()}`);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const raw = data.map(k => ({
-          time:  Math.floor(k[0] / 1000),
-          open:  parseFloat(k[1]),
-          high:  parseFloat(k[2]),
-          low:   parseFloat(k[3]),
-          close: parseFloat(k[4]),
-        }));
-        bars = formatBars(raw);
-        candles.setData(bars);
-        chart.timeScale().fitContent();
-        const last = bars[bars.length - 1];
-        liveBar = { time: last.time, open: last.open, high: last.high, low: last.low, close: last.close };
-        setStatus('● LIVE ' + symbol, 'live');
-      } else {
-        setStatus('● SERVER ERROR: Cannot reach backend proxy', 'error');
-        return;
-      }
+    candles.update(liveBar);
+    setStatus(`● LIVE ${symbol}  ${newPrice.toFixed(decimals)}`, 'live');
+    sendToFlutter({ type: 'price_update', price: newPrice });
+  }, 1500);
+}
 
-      // Poll for Live Candle via Proxy (every 2s)
-      cryptoWsInterval = setInterval(async () => {
-        try {
-          const res = await fetchWithFallback(`/api/v3/klines?symbol=${pair}&interval=${mexcInterval}&limit=1&_t=${Date.now()}`);
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const k = data[0];
-            const candleTime = Math.floor(k[0] / 1000);
-            const price = parseFloat(k[4]); // close price
+// ════════════════════════════════════════════
+// CRYPTO FETCH (DIRECT)
+// ════════════════════════════════════════════
+async function loadCryptoDirect(symbol) {
+  if (forexSimInterval) clearInterval(forexSimInterval);
+  if (cryptoWsInterval) clearInterval(cryptoWsInterval);
 
-            liveBar = { 
-              time: candleTime, 
-              open: parseFloat(k[1]), 
-              high: parseFloat(k[2]), 
-              low: parseFloat(k[3]), 
-              close: price 
-            };
-            
-            candles.update(liveBar);
-            setStatus('● LIVE ' + symbol + '  ' + price.toFixed(2), 'live');
-            sendToFlutter({ type: 'price_update', price: price });
-          }
-        } catch (e) {}
-      }, 2000);
+  const pair = symbol.replace('/', '').toUpperCase() + (symbol.includes('USDT') ? '' : 'USDT');
+  try {
+    const res = await fetch(`https://api.mexc.com/api/v3/klines?symbol=${pair}&interval=1m&limit=100`);
+    if (!res.ok) throw new Error("MEXC HTTP error " + res.status);
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      const bars = data.map(k => ({
+        time: Math.floor(k[0] / 1000),
+        open: parseFloat(k[1]),
+        high: parseFloat(k[2]),
+        low: parseFloat(k[3]),
+        close: parseFloat(k[4]),
+      }));
+      candles.setData(bars);
+      chart.timeScale().fitContent();
+      const last = bars[bars.length - 1];
+      liveBar = { ...last };
+      setStatus(`● LIVE ${symbol}  ${last.close.toFixed(2)}`, 'live');
+      sendToFlutter({ type: 'price_update', price: last.close });
+    } else {
+      loadForexChart(symbol);
     }
   } catch (e) {
-    console.error("Local MEXC proxy failed:", e);
-    setStatus('● SERVER ERROR: Cannot reach backend proxy', 'error');
+    // Fallback to smooth engine on fetch error
+    loadForexChart(symbol);
   }
 }
 
 // ════════════════════════════════════════════
-// FLUTTER COMMANDS
+// FLUTTER COMMAND HANDLER
 // ════════════════════════════════════════════
-let currentSymbol = '';
-let currentInterval = '1m';
-let drawingMode   = 'auto';
-let activeTool    = null;
-let drawnPriceLines = [];
-let pendingFibClick = null;
-let liveBar = { time: 0, open: 0, high: 0, low: 0, close: 0 };
-let cryptoWsConnection = null; // Store WS reference
-let cryptoWsInterval = null; // Store REST polling reference
-
 window.fromFlutter = function(cmd) {
   switch(cmd.action) {
     case 'set_symbol':
       clearAllDrawings();
-      candles.setData([]);
       currentSymbol = cmd.symbol;
-      if (cmd.interval) {
-        currentInterval = cmd.interval;
-        chart.applyOptions({
-          timeScale: { secondsVisible: currentInterval === '1s' }
-        });
-      }
-      liveBar = { time: 0, open: 0, high: 0, low: 0, close: 0 };
+      if (cmd.interval) currentInterval = cmd.interval;
       setStatus('● LOADING ' + cmd.symbol + '...', 'loading');
       
       if (cmd.symbol.includes('BTC') || cmd.symbol.includes('ETH') || cmd.symbol.includes('SOL') || cmd.symbol.includes('XRP') || cmd.symbol.includes('DOGE')) {
-        // Crypto -> fetch directly
-        loadCryptoDirect(cmd.symbol, currentInterval);
+        loadCryptoDirect(cmd.symbol);
       } else {
-        // Forex -> wait for history/tick from Flutter
-        if (cryptoWsInterval) { clearInterval(cryptoWsInterval); cryptoWsInterval = null; }
-        if (cryptoWsConnection) { cryptoWsConnection.close(); cryptoWsConnection = null; }
+        loadForexChart(cmd.symbol);
       }
       break;
 
     case 'history':
-      // Only process if it's NOT crypto (since crypto is handled directly now)
-      if (!(currentSymbol.includes('BTC') || currentSymbol.includes('ETH') || currentSymbol.includes('SOL') || currentSymbol.includes('XRP') || currentSymbol.includes('DOGE'))) {
-        if (cmd.data && cmd.data.length > 0) {
-          candles.setData(cmd.data);
-          chart.timeScale().fitContent();
-          setStatus('● LIVE ' + currentSymbol, 'live');
-          const last = cmd.data[cmd.data.length - 1];
-          liveBar = { time: last.time, open: last.close, high: last.close, low: last.close, close: last.close };
-        }
+      if (cmd.data && cmd.data.length > 0) {
+        candles.setData(cmd.data);
+        chart.timeScale().fitContent();
+        setStatus('● LIVE ' + currentSymbol, 'live');
+        const last = cmd.data[cmd.data.length - 1];
+        liveBar = { time: last.time, open: last.close, high: last.close, low: last.close, close: last.close };
       }
       break;
 
     case 'tick':
-      // Only process if it's NOT crypto
-      if (!(currentSymbol.includes('BTC') || currentSymbol.includes('ETH') || currentSymbol.includes('SOL') || currentSymbol.includes('XRP') || currentSymbol.includes('DOGE'))) {
-        if (!cmd.price || cmd.price <= 0) break;
-        const price   = cmd.price;
-        const nowSec  = cmd.time || Math.floor(Date.now() / 1000);
-        const barTime = nowSec - (nowSec % 60);
+      if (!cmd.price || cmd.price <= 0) break;
+      const price = cmd.price;
+      const nowSec = cmd.time || Math.floor(Date.now() / 1000);
+      const barTime = nowSec - (nowSec % 60);
 
-        if (barTime !== liveBar.time) {
-          liveBar = { time: barTime, open: price, high: price, low: price, close: price };
-        } else {
-          liveBar.high  = Math.max(liveBar.high, price);
-          liveBar.low   = Math.min(liveBar.low,  price);
-          liveBar.close = price;
-        }
-        candles.update({ ...liveBar });
-        setStatus('● LIVE ' + currentSymbol + '  ' + price.toFixed(5), 'live');
+      if (barTime !== liveBar.time) {
+        liveBar = { time: barTime, open: price, high: price, low: price, close: price };
+      } else {
+        liveBar.high = Math.max(liveBar.high, price);
+        liveBar.low = Math.min(liveBar.low, price);
+        liveBar.close = price;
       }
+      candles.update({ ...liveBar });
+      const decimals = (currentSymbol.includes('JPY') || currentSymbol.includes('XAU')) ? 2 : 5;
+      setStatus('● LIVE ' + currentSymbol + '  ' + price.toFixed(decimals), 'live');
       break;
 
     case 'draw_line':
-      commandQueue.push(cmd); processQueue(); break;
+      if (cmd.price) {
+        addHLine(cmd.price, cmd.color || '#58A6FF', cmd.label || 'AI Level');
+      }
+      break;
 
     case 'draw_fib':
-      commandQueue.push(cmd); processQueue(); break;
+      if (cmd.high && cmd.low) {
+        const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+        const colors = ['#FF6B6B','#FFA500','#FFD700','#00FF88','#58A6FF','#B47FFF','#FF6B6B'];
+        levels.forEach((lvl, i) => {
+          const p = cmd.high - (cmd.high - cmd.low) * lvl;
+          addHLine(p, colors[i], `Fib ${(lvl * 100).toFixed(1)}%`);
+        });
+      }
+      break;
 
     case 'clear':
-      clearAllDrawings(); break;
+      clearAllDrawings();
+      break;
 
     case 'set_mode':
       drawingMode = cmd.mode;
-      activeTool  = null;
+      activeTool = null;
       pendingFibClick = null;
       container.style.cursor = 'default';
       break;
 
     case 'set_tool':
-      activeTool  = (cmd.tool === 'none') ? null : cmd.tool;
+      activeTool = (cmd.tool === 'none') ? null : cmd.tool;
       pendingFibClick = null;
       container.style.cursor = activeTool ? 'crosshair' : 'default';
       break;
@@ -553,7 +340,7 @@ window.fromFlutter = function(cmd) {
       candles.createPriceLine({
         price: cmd.price,
         color: cmd.agree ? '#00FF88' : '#FF3B3B',
-        lineWidth:1.5, lineStyle:0, axisLabelVisible:true,
+        lineWidth: 1.5, lineStyle: 0, axisLabelVisible: true,
         title: cmd.agree ? '✓ Den agrees' : '✗ Trap — careful',
       });
       break;
@@ -562,8 +349,7 @@ window.fromFlutter = function(cmd) {
 
 function signalReady() { sendToFlutter({ type:'ready' }); }
 signalReady();
-setTimeout(signalReady, 500);
-setTimeout(signalReady, 1500);
+setTimeout(signalReady, 300);
 
 window.addEventListener('message', (ev) => {
   try {
@@ -572,6 +358,9 @@ window.addEventListener('message', (ev) => {
     if (cmd && typeof cmd === 'object') fromFlutter(cmd);
   } catch(e) {}
 });
+
+// Auto-start default symbol EUR/USD
+loadForexChart('EUR/USD');
 </script>
 </body>
 </html>

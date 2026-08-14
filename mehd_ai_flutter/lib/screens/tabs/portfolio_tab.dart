@@ -5,15 +5,26 @@ import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'dart:ui';
 
+import 'package:mehd_ai_flutter/controllers/trading_controller.dart';
+
 class PortfolioTab extends StatelessWidget {
   const PortfolioTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Mocked data for now, would fetch from OANDA / Account Health
-    final List<Map<String, dynamic>> positions = [];
+    final trading = context.watch<TradingController>();
+    final positions = trading.activePositions;
     final settings = context.watch<SettingsService>();
-    final balanceStr = '\$${settings.accountBalance.toStringAsFixed(0)}';
+    final double totalPnl = positions.fold(
+      0.0,
+      (sum, item) => sum + ((item['pnl'] as num?)?.toDouble() ?? 0.0),
+    );
+    final double equity = settings.accountBalance + totalPnl;
+    final balanceStr = '\$${equity.toStringAsFixed(2)}';
+    final pnlStr = '${totalPnl >= 0 ? '+' : ''}\$${totalPnl.toStringAsFixed(2)}';
+    final pnlColor = totalPnl > 0
+        ? MehdAiTheme.green
+        : (totalPnl < 0 ? MehdAiTheme.red : MehdAiTheme.textSecondary);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
@@ -46,7 +57,7 @@ class PortfolioTab extends StatelessWidget {
         const SizedBox(height: 24),
 
         // Account Summary Card
-        _buildAccountSummary(balanceStr),
+        _buildAccountSummary(balanceStr, pnlStr, pnlColor),
         const SizedBox(height: 24),
 
         if (positions.isEmpty)
@@ -57,7 +68,7 @@ class PortfolioTab extends StatelessWidget {
     );
   }
 
-  Widget _buildAccountSummary(String balanceStr) {
+  Widget _buildAccountSummary(String balanceStr, String pnlStr, Color pnlColor) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 500;
@@ -65,7 +76,7 @@ class PortfolioTab extends StatelessWidget {
           _buildMiniMetric('EQUITY', balanceStr, MehdAiTheme.blue),
           _buildMiniMetric('MARGIN USED', '\$0.00', MehdAiTheme.textSecondary),
           _buildMiniMetric('FREE MARGIN', balanceStr, MehdAiTheme.green),
-          _buildMiniMetric('UNREALIZED P&L', '\$0.00', MehdAiTheme.textSecondary),
+          _buildMiniMetric('UNREALIZED P&L', pnlStr, pnlColor),
         ];
 
         if (isMobile) {

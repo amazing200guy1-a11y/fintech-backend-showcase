@@ -1,29 +1,21 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'package:mehd_ai_flutter/controllers/trading_controller.dart';
 import 'package:mehd_ai_flutter/controllers/market_data_controller.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 import 'package:mehd_ai_flutter/core/constants.dart';
 import 'package:mehd_ai_flutter/widgets/consensus_bar.dart';
-import 'package:mehd_ai_flutter/widgets/ai_terminal.dart';
 import 'package:mehd_ai_flutter/widgets/den_chart.dart';
-import 'package:mehd_ai_flutter/widgets/den_help_modal.dart';
 import 'package:mehd_ai_flutter/utils/titan_animations.dart';
-import 'package:mehd_ai_flutter/screens/den/strategy_room.dart';
-import 'package:mehd_ai_flutter/screens/den/research_room.dart';
 import 'package:mehd_ai_flutter/screens/den/positions_screen.dart' as den_pos;
 import 'package:mehd_ai_flutter/screens/journey_screen.dart';
 import 'package:mehd_ai_flutter/screens/calculators_screen.dart';
-import 'package:mehd_ai_flutter/screens/data_moat_screen.dart';
 import 'package:mehd_ai_flutter/screens/war_room_screen.dart';
 import 'package:mehd_ai_flutter/screens/settings_screen.dart';
-import 'package:mehd_ai_flutter/screens/war_room_community_screen.dart';
-import 'package:mehd_ai_flutter/screens/den/sovereign_feed_screen.dart';
 import 'package:mehd_ai_flutter/screens/scoreboard_screen.dart';
 import 'package:mehd_ai_flutter/screens/autopilot_command_center.dart';
-import 'package:mehd_ai_flutter/screens/den/network_screen.dart';
-import 'package:mehd_ai_flutter/screens/sandbox_mode_screen.dart';
-import 'package:mehd_ai_flutter/screens/pulse_trading_screen.dart';
 import 'package:mehd_ai_flutter/screens/broker_screen.dart';
 class HomeMobileLayout extends StatefulWidget {
   final TradingController trading;
@@ -85,22 +77,10 @@ class _HomeMobileLayoutState extends State<HomeMobileLayout> {
                       )).toList(),
                     ),
                   ),
-                  // Help icon
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () => showDenHelpModal(context),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: MehdAiTheme.blue.withOpacity(0.1),
-                          border: Border.all(color: MehdAiTheme.blue.withOpacity(0.3)),
-                        ),
-                        child: const Icon(Icons.help_outline, color: MehdAiTheme.blue, size: 16),
-                      ),
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.grid_view_rounded, size: 18, color: Color(0xFF58A6FF)),
+                    onPressed: () => _showDenActionMenu(context),
+                    tooltip: 'Institutional Hub',
                   ),
                 ],
               ),
@@ -138,53 +118,62 @@ class _HomeMobileLayoutState extends State<HomeMobileLayout> {
               ),
           ],
         ),
-        
-        // Floating Action Button (Tiger Circle) — always visible on terminal screen
-        Positioned(
-          bottom: 60,
-          right: 12,
-          child: Tooltip(
-            message: 'The Den Action Menu',
-            child: GestureDetector(
-              onTap: () => _showDenActionMenu(context),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: MehdAiTheme.background(context),
-                  border: Border.all(
-                    color: const Color(0xFF58A6FF).withOpacity(0.4),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF58A6FF).withOpacity(0.15),
-                      blurRadius: 12,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: ClipOval(
-                  child: Image.asset('assets/images/mehd_logo.png', width: 48, height: 48),
-                ),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }
 
 
+  Widget _buildMobileAccountMetricsBar() {
+    final settings = context.watch<SettingsService>();
+    final balance = settings.accountBalance;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0D1117),
+        border: Border(bottom: BorderSide(color: Color(0xFF21262D))),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Text('BAL: ', style: TextStyle(color: Color(0xFF888888), fontSize: 10, fontWeight: FontWeight.bold)),
+              Text('\$${balance.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          Row(
+            children: [
+              const Text('EQ: ', style: TextStyle(color: Color(0xFF888888), fontSize: 10, fontWeight: FontWeight.bold)),
+              Text('\$${balance.toStringAsFixed(2)}', style: const TextStyle(color: Color(0xFF58A6FF), fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          Row(
+            children: [
+              const Text('DD: ', style: TextStyle(color: Color(0xFF888888), fontSize: 10, fontWeight: FontWeight.bold)),
+              const Text('0.0%', style: TextStyle(color: Color(0xFF00FF88), fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00FF88).withOpacity(0.15),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: const Color(0xFF00FF88).withOpacity(0.4)),
+            ),
+            child: const Text('ACTIVE', style: TextStyle(color: Color(0xFF00FF88), fontSize: 9, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTerminalTab(MarketDataController market) {
     return Column(
       key: const ValueKey('terminal'),
       children: [
-        SizedBox(
-          // Increased from 0.40 → 0.45: the ~56px freed by removing the inner
-          // nav bar is redistributed here so the chart breathes.
-          height: MediaQuery.of(context).size.height * 0.45,
+        _buildMobileAccountMetricsBar(),
+        Expanded(
           child: market.activeSymbol == null
               ? Center(child: Text('Empty', style: TextStyle(color: MehdAiTheme.text(context))))
               : Column(
@@ -239,14 +228,6 @@ class _HomeMobileLayoutState extends State<HomeMobileLayout> {
                   ],
                 ),
         ),
-        Expanded(
-          child: AiTerminal(
-            consensusResult: market.consensus,
-            isAnalyzing: market.isAnalyzing,
-            drawings: const [],
-            onStrikeComplete: () => market.executeDrawings(),
-          ),
-        ),
       ],
     );
   }
@@ -287,46 +268,22 @@ class _HomeMobileLayoutState extends State<HomeMobileLayout> {
 
                       _buildMenuCard(context, 'BROKER SHIELD', Icons.shield_rounded, const [Color(0xFF0E3A18), Color(0xFF061A0C)], const Color(0xFF00FF88),
                         () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const BrokerScreen())); }),
-                        
-                      _buildMenuCard(context, 'SCOREBOARD', Icons.emoji_events_rounded, const [Color(0xFF0E3A18), Color(0xFF061A0C)], const Color(0xFF00FF88),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const ScoreboardScreen())); }),
-                        
+
                       _buildMenuCard(context, 'AUTOPILOT', Icons.precision_manufacturing_rounded, const [Color(0xFF0E2A3A), Color(0xFF061520)], const Color(0xFF58A6FF),
                         () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const AutopilotCommandCenter())); }),
                         
-                      _buildMenuCard(context, 'NETWORK', Icons.group_work_rounded, const [Color(0xFF3A2B0E), Color(0xFF1A1306)], const Color(0xFFFFD700),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const NetworkScreen())); }),
-                        
-                      _buildMenuCard(context, 'DATA MOAT', Icons.hub_rounded, const [Color(0xFF0F3D4A), Color(0xFF061A21)], const Color(0xFF00E5FF),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const DataMoatScreen())); }),
-                        
                       _buildMenuCard(context, 'POSITIONS', Icons.show_chart_rounded, const [Color(0xFF4A3A0E), Color(0xFF211A06)], const Color(0xFFFFD700),
                         () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const den_pos.PositionsScreen())); }),
-                        
-                      _buildMenuCard(context, 'STRATEGY', Icons.account_balance_rounded, const [Color(0xFF0E3A4A), Color(0xFF061A21)], const Color(0xFF00FFCC),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(appBar: AppBar(title: const Text('STRATEGY STRATEGY')), backgroundColor: MehdAiTheme.bgPrimary, body: StrategyRoom(activeSymbol: widget.market.activeSymbol, consensusResult: widget.market.consensus, isAnalyzing: widget.market.isAnalyzing)))); }),
-                        
-                      _buildMenuCard(context, 'RESEARCH', Icons.travel_explore_rounded, const [Color(0xFF2D1B4E), Color(0xFF1A0F30)], const Color(0xFFBC8CFF),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(appBar: AppBar(title: const Text('RESEARCH INTELLIGENCE')), backgroundColor: MehdAiTheme.bgPrimary, body: ResearchRoom(activeSymbol: widget.market.activeSymbol, consensusResult: widget.market.consensus, isAnalyzing: widget.market.isAnalyzing)))); }),
-                        
-                      _buildMenuCard(context, 'PULSE', Icons.psychology_rounded, const [Color(0xFF0A2A18), Color(0xFF06180E)], const Color(0xFF00FF88),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const PulseTradingScreen())); }),
-                        
-                      _buildMenuCard(context, 'SANDBOX', Icons.visibility_rounded, const [Color(0xFF1A1040), Color(0xFF0D0820)], const Color(0xFFBC8CFF),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const SandboxModeScreen())); }),
-                        
-                      _buildMenuCard(context, 'JOURNEY', Icons.rocket_launch, const [Color(0xFF4A0E4E), Color(0xFF220526)], const Color(0xFF9E00FF),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const JourneyScreen(showBack: true))); }),
-                        
+
+                      _buildMenuCard(context, 'SCOREBOARD', Icons.emoji_events_rounded, const [Color(0xFF0E3A18), Color(0xFF061A0C)], const Color(0xFF00FF88),
+                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const ScoreboardScreen())); }),
+
                       _buildMenuCard(context, 'CALCULATOR', Icons.calculate_rounded, const [Color(0xFF2A1C0E), Color(0xFF140D07)], MehdAiTheme.gold,
                         () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const CalculatorsScreen())); }),
-                        
-                      _buildMenuCard(context, 'SOVEREIGN', Icons.hub_outlined, const [Color(0xFF0E2A3A), Color(0xFF061520)], const Color(0xFF58A6FF),
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const SovereignFeedScreen())); }),
-                        
-                      _buildMenuCard(context, 'COMMUNITY', Icons.groups_rounded, const [Color(0xFF3A1B5E), Color(0xFF1F0F35)], MehdAiTheme.purple,
-                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const WarRoomCommunityScreen())); }),
-                        
+
+                      _buildMenuCard(context, 'JOURNEY', Icons.rocket_launch, const [Color(0xFF4A0E4E), Color(0xFF220526)], const Color(0xFF9E00FF),
+                        () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const JourneyScreen(showBack: true))); }),
+
                       _buildMenuCard(context, 'SETTINGS', Icons.settings_rounded, const [Color(0xFF1A2030), Color(0xFF0F1520)], Colors.white70,
                         () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())); }),
                     ],

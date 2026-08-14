@@ -1,18 +1,20 @@
-import 'dart:io';
-import 'dart:ui' as ui;
-import 'dart:ui' show ImageFilter;
+import 'dart:ui' as ui; // ui.ImageByteFormat used in screenshot export
+// ignore: duplicate_import
+import 'dart:ui' show ImageFilter; // ImageFilter used unqualified in BackdropFilter
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/utils/file_exporter.dart';
 import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mehd_ai_flutter/services/settings_service.dart';
+import 'package:mehd_ai_flutter/services/payment_service.dart';
 
 class ComplianceScreen extends StatefulWidget {
-  const ComplianceScreen({super.key});
+  final bool showBack;
+  const ComplianceScreen({super.key, this.showBack = false});
 
   @override
   State<ComplianceScreen> createState() => _ComplianceScreenState();
@@ -64,6 +66,14 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
     return Scaffold(
       backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: widget.showBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
+
         title: Text('Compliance & Audit', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
         backgroundColor: MehdAiTheme.bgSecondary,
         elevation: 0,
@@ -181,16 +191,24 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
               const SizedBox(height: 12),
               Builder(builder: (ctx) {
                 final user = FirebaseAuth.instance.currentUser;
+                final payment = ctx.watch<PaymentService>();
+                final settings = ctx.watch<SettingsService>();
                 final name = user?.displayName ?? 'TRADER';
-                return Text(
-                  'ISSUED TO: ${name.toUpperCase()}',
-                  style: GoogleFonts.jetBrainsMono(
-                    color: MehdAiTheme.gold,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2.0,
-                  ),
-                  textAlign: TextAlign.center,
+                final tier = payment.currentTier.toUpperCase();
+                final mode = settings.paperMode ? 'PAPER' : 'LIVE';
+                return Column(
+                  children: [
+                    Text(
+                      'ISSUED TO: ${name.toUpperCase()} • TIER: $tier ($mode)',
+                      style: GoogleFonts.jetBrainsMono(
+                        color: MehdAiTheme.gold,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 );
               }),
               const SizedBox(height: 16),
@@ -218,7 +236,6 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _isDownloading ? null : () async {
-                    final box = context.findRenderObject() as RenderBox?;
                     setState(() => _isDownloading = true);
                     try {
                       final boundary = _certKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -243,17 +260,7 @@ class _ComplianceScreenState extends State<ComplianceScreen> with SingleTickerPr
                           );
                         }
                       } else {
-                        final tempDir = await getTemporaryDirectory();
-                        final file = await File('${tempDir.path}/$filename').create();
-                        await file.writeAsBytes(pngBytes);
-                        if (!mounted) return;
-                        await SharePlus.instance.share(
-                          ShareParams(
-                            text: 'Mehd AI — Certificate of Intelligence. Operating under Den Analysis™ execution standards with HardRiskKernel enforcement.',
-                            files: [XFile(file.path)],
-                            sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
-                          ),
-                        );
+                        savePngBytes(pngBytes, filename);
                       }
                     } catch (e) {
                       if (mounted) {

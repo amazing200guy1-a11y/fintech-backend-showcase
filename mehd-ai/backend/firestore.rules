@@ -9,13 +9,14 @@ service cloud.firestore {
       //   - 'role' and 'admin' are NEVER allowed from the client.
       //   - 'userId' is allowed on CREATE (Flutter sends it during onboarding)
       //     but blocked from being CHANGED on UPDATE (prevents impersonation).
+      // riskPercent cap aligned with risk_engine.py MAX_RISK_PER_TRADE_PCT = 10.0
       allow create: if request.auth != null && request.auth.uid == userId
                     && request.resource.data.riskPercent >= 0.1 
-                    && request.resource.data.riskPercent <= 1.0
+                    && request.resource.data.riskPercent <= 10.0
                     && (!request.resource.data.keys().hasAny(['role', 'admin']));
       allow update: if request.auth != null && request.auth.uid == userId
                     && request.resource.data.riskPercent >= 0.1 
-                    && request.resource.data.riskPercent <= 1.0
+                    && request.resource.data.riskPercent <= 10.0
                     && (!request.resource.data.keys().hasAny(['role', 'admin']))
                     && (!request.resource.data.keys().hasAny(['userId']) 
                         || request.resource.data.userId == resource.data.userId);
@@ -174,6 +175,30 @@ service cloud.firestore {
     // 15. IDEMPOTENCY KEYS (server-only — trade replay protection)
     match /idempotency_keys/{keyId} {
       allow read, write: if false;  // Fully server-managed
+    }
+
+    // 16. VIRTUAL STOP LOSS VAULT (server-only — NEVER client readable)
+    // Virtual stops are stored server-side secretly so brokers cannot see SL levels.
+    // If a client could read this, a malicious actor could reveal user stop targets.
+    match /virtual_stops/{tradeId} {
+      allow read, write: if false;  // ABSOLUTE server-only — Admin SDK only
+    }
+
+    // 17. BROKER CREDENTIALS VAULT (server-only — AES-256 encrypted keys)
+    // Encrypted broker API keys, decrypted exclusively in broker_gateway.py.
+    // No client should ever read or write these directly.
+    match /broker_credentials/{userId} {
+      allow read, write: if false;  // ABSOLUTE server-only — Admin SDK only
+    }
+
+    // 18. FEEDS (Community & Sovereign Streams)
+    match /community_feed/{feedId} {
+      allow read: if request.auth != null;
+      allow write: if false;  // Server-only — written by backend signal engine
+    }
+    match /sovereign_feed/{feedId} {
+      allow read: if request.auth != null;
+      allow write: if false;  // Server-only — written by 11-agent consensus runner
     }
 
     // DEFAULT DENY

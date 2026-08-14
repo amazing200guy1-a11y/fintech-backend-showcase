@@ -15,7 +15,7 @@ logger = logging.getLogger("mehd.consensus_helpers")
 SENTIMENT_LAYER = ["grok-beta", "sonar-small-online", "gemini-1.5-flash"]
 STRATEGY_LAYER = ["claude-3-5-sonnet-20240620", "gpt-4o", "llama-3.1-70b"]
 MATH_LAYER = ["deepseek-chat", "o3-mini", "codestral-latest"]
-SUPREME = ["claude-3-haiku-20240307", "gpt-4o-mini"]
+SUPREME = ["claude-3-haiku-20240307", "kimi-latest"]
 
 ALL_MODELS = SENTIMENT_LAYER + STRATEGY_LAYER + MATH_LAYER + SUPREME
 
@@ -31,10 +31,12 @@ COUNCIL_TIMEOUT_SECONDS: float = 30.0
 
 # Per-model timeouts (seconds) — total max ≈ 8s since all run in parallel
 MODEL_TIMEOUTS = {
-    # Layer 1
+    # Layer 1 (Fast-Path: Gemini 3.6 Flash <200ms; Perplexity 1.5s cap)
     "grok-beta": 3,
-    "sonar-small-online": 5,
+    "sonar-small-online": 1.5,
+    "sonar-pro": 1.5,
     "gemini-1.5-flash": 4,
+    "gemini-3.6-flash": 4,
     # Layer 2
     "claude-3-5-sonnet-20240620": 6,
     "gpt-4o": 6,
@@ -45,10 +47,10 @@ MODEL_TIMEOUTS = {
     "codestral-latest": 4,
     # Layer 4 (Reviewers)
     "claude-3-haiku-20240307": 1,
-    "gpt-4o-mini": 1,
+    "kimi-latest": 4,
 }
 
-# THE DEN IDENTITY — MEHD AI Proprietary Agent Mapping
+# THE DEN IDENTITY — MEHD AI Proprietary Agent Mapping (11 Primary Models)
 DEN_IDENTITY = {
     "grok-beta": {
         "display_name": "DON",
@@ -100,11 +102,28 @@ DEN_IDENTITY = {
         "layer": "SUPREME",
         "personality": "Supreme Aggregator"
     },
-    "gpt-4o-mini": {
+    "kimi-latest": {
         "display_name": "SENTINEL",
         "layer": "GUARDIAN",
-        "personality": "Anti-Hallucination Guardian"
+        "personality": "Anti-Hallucination & Paradox Reviewer (Moonshot AI)"
     }
+}
+
+# Alias mapping for legacy or provider short names
+DEN_ALIAS_MAP = {
+    "grok": "grok-beta",
+    "perplexity": "sonar-small-online",
+    "sonar-pro": "sonar-small-online",
+    "gemini": "gemini-1.5-flash",
+    "gemini-2.0-flash": "gemini-1.5-flash",
+    "gpt-4": "gpt-4o",
+    "gpt4": "gpt-4o",
+    "claude": "claude-3-5-sonnet-20240620",
+    "llama": "llama-3.1-70b",
+    "llama-3.3-70b-versatile": "llama-3.1-70b",
+    "deepseek": "deepseek-chat",
+    "openai-o3": "o3-mini",
+    "codestral": "codestral-latest",
 }
 
 # ──────────────────────────────────────────────
@@ -167,15 +186,45 @@ def _get_vault_role(vault_key: str, fallback_title: str, fallback_desc: str) -> 
     return role.get("title", fallback_title), role.get("description", fallback_desc)
 
 def _build_user_message(symbol: str, snapshot: MarketSnapshot) -> str:
-    """Builds the market context for the LLM."""
+    """Builds the rich market context and technical indicators for the LLM."""
+    session_range = max(snapshot.high - snapshot.low, 0.0001)
+    price_change_pct = ((snapshot.close - snapshot.open) / snapshot.open) * 100.0 if snapshot.open > 0 else 0.0
+    range_pos_pct = ((snapshot.close - snapshot.low) / session_range) * 100.0
+    spread_status = "NORMAL" if snapshot.spread <= 3.0 else ("ELEVATED" if snapshot.spread <= 5.0 else "EXTREME")
+
+    # Smart Money Structure Zone
+    if range_pos_pct >= 70.0:
+        zone = "PREMIUM ZONE (Institutional Distribution / Sell Skew)"
+    elif range_pos_pct <= 30.0:
+        zone = "DISCOUNT ZONE (Institutional Accumulation / Buy Skew)"
+    else:
+        zone = "EQUILIBRIUM (Fair Value / Range-Bound)"
+
+    # Intraday Momentum Bias
+    if price_change_pct >= 0.25:
+        momentum_bias = "STRONG BULLISH EXPANSION"
+    elif price_change_pct <= -0.25:
+        momentum_bias = "STRONG BEARISH EXPANSION"
+    else:
+        momentum_bias = "NEUTRAL CONSOLIDATION"
+
+    # Pip range calculation
+    pip_scale = 0.01 if ("JPY" in symbol or "XAU" in symbol) else 0.0001
+    range_pips = session_range / pip_scale
+
     base_msg = (
         "<market_data>\n"
         f"Market: {symbol}\n"
         f"Nanosecond Timestamp: {snapshot.timestamp_ns}\n"
-        f"Price: {snapshot.bid:.5f} / {snapshot.ask:.5f} (Spread: {snapshot.spread:.1f} pips)\n"
-        f"Order Book: {snapshot.order_book_walls}\n"
+        f"Live Price: Bid={snapshot.bid:.5f} | Ask={snapshot.ask:.5f} | Close={snapshot.close:.5f}\n"
+        f"Spread: {snapshot.spread:.1f} pips ({spread_status})\n"
         f"Session Open: {snapshot.open:.5f} | High: {snapshot.high:.5f} | Low: {snapshot.low:.5f}\n"
+        f"Session Performance: Change={price_change_pct:+.2f}% | Range Position={range_pos_pct:.1f}%\n"
+        f"Market Structure Zone: {zone}\n"
+        f"Momentum Bias: {momentum_bias}\n"
+        f"Session Volatility Range: {range_pips:.1f} pips\n"
         f"Volume: {snapshot.volume}\n"
+        f"Order Book Walls: {snapshot.order_book_walls}\n"
         "</market_data>\n\n"
     )
     
@@ -205,7 +254,8 @@ def _parse_llm_json(response_text: str, model_name: str, snapshot_id: UUID) -> A
         confidence = _sanitize_confidence(data.get("confidence", 50.0))
         reasoning = _sanitize_reasoning(str(data.get("reasoning", "No reasoning provided.")))
         
-        display_name = DEN_IDENTITY.get(model_name, {}).get("display_name", model_name.upper())
+        model_key = DEN_ALIAS_MAP.get(model_name, model_name)
+        display_name = DEN_IDENTITY.get(model_key, {}).get("display_name", model_name.upper())
         return AIVote(
             model_name=display_name,
             snapshot_id=snapshot_id,

@@ -16,10 +16,16 @@ FROM python:3.12-slim AS base
 # Security: Don't run as root
 RUN groupadd -r mehd && useradd -r -g mehd -m mehd
 
-# System deps (minimal)
+# System deps & High-Throughput OS Limits (1,048,576 File Descriptors)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "* soft nofile 1048576" >> /etc/security/limits.conf \
+    && echo "* hard nofile 1048576" >> /etc/security/limits.conf \
+    && echo "root soft nofile 1048576" >> /etc/security/limits.conf \
+    && echo "root hard nofile 1048576" >> /etc/security/limits.conf \
+    && echo "mehd soft nofile 1048576" >> /etc/security/limits.conf \
+    && echo "mehd hard nofile 1048576" >> /etc/security/limits.conf
 
 WORKDIR /app
 
@@ -47,5 +53,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Start the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--log-level", "info"]
+# Start the application with multi-worker ASGI scaling
+ENV WORKERS=4
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port 8000 --workers ${WORKERS:-4} --log-level info"]

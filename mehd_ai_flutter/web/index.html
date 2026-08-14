@@ -115,17 +115,33 @@
   </div>
   <script src="flutter_bootstrap.js?v=1.0.4" async></script>
   <script>
+    function removeLoader() {
+      var loader = document.getElementById('loading');
+      if (loader) {
+        loader.style.opacity = '0';
+        loader.style.transition = 'opacity 0.5s ease';
+        setTimeout(function() {
+          if (loader.parentNode) loader.parentNode.removeChild(loader);
+        }, 500);
+      }
+    }
+
+    // Only remove loader when Flutter element actually mounts
     window.addEventListener('load', function(ev) {
-      // Remove loader once the page is fully loaded or engine is ready
-      // Flutter 3.22+ handles some of this via bootstrap, but extra safety:
+
       var observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
           if (mutation.addedNodes.length > 0) {
             for (var i = 0; i < mutation.addedNodes.length; i++) {
               var node = mutation.addedNodes[i];
-              if (node.tagName === 'FLUTTER-VIEW') {
-                document.getElementById('loading').remove();
+              if (node.tagName && (
+                node.tagName.toUpperCase().indexOf('FLT-') !== -1 ||
+                node.tagName.toUpperCase().indexOf('FLUTTER') !== -1 ||
+                node.tagName.toUpperCase() === 'CANVAS'
+              )) {
+                removeLoader();
                 observer.disconnect();
+                break;
               }
             }
           }

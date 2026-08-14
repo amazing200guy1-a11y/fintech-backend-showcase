@@ -40,10 +40,24 @@ class TheDenScreen extends StatefulWidget {
 class _TheDenScreenState extends State<TheDenScreen> {
   final PageController _pageController = PageController(initialPage: 1); // Start in Strategy Room
   int _currentIndex = 1;
-  bool _autoSwarmActive = false;
+  // ignore: unused_field
+  bool _autoSwarmActive = true; // Always-on autonomous — no manual scan button
   Timer? _autoSwarmTimer;
 
   static const List<String> _availablePairs = AppConstants.symbols;
+
+  @override
+  void initState() {
+    super.initState();
+    // Boot the autonomous swarm immediately — no user action required
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final market = context.read<MarketDataController>();
+        market.triggerSwarmAnalysis();
+        _startAutoSwarm();
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -64,17 +78,25 @@ class _TheDenScreenState extends State<TheDenScreen> {
     );
   }
 
+  void _startAutoSwarm() {
+    _autoSwarmTimer?.cancel();
+    // Re-scan every 30 seconds — fully autonomous, no user input needed
+    _autoSwarmTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) {
+        final market = context.read<MarketDataController>();
+        market.triggerSwarmAnalysis();
+      }
+    });
+  }
+
+  // Keep toggle for the AUTO 24/5 switch UI state only
+  // ignore: unused_element
   void _toggleAutoSwarm(bool val) {
     setState(() => _autoSwarmActive = val);
-    _autoSwarmTimer?.cancel();
     if (val) {
-      // Re-scan every 20 seconds automatically
-      _autoSwarmTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-        if (mounted) {
-          final market = context.read<MarketDataController>();
-          market.triggerSwarmAnalysis();
-        }
-      });
+      _startAutoSwarm();
+    } else {
+      _autoSwarmTimer?.cancel();
     }
   }
 
@@ -160,42 +182,67 @@ class _TheDenScreenState extends State<TheDenScreen> {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // AUTO-SWARM Toggle
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('AUTO 24/5', style: GoogleFonts.inter(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.w600)),
-                    const SizedBox(width: 4),
-                    Switch(
-                      value: _autoSwarmActive,
-                      activeColor: const Color(0xFF00FF88),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      onChanged: _toggleAutoSwarm,
+                if (MediaQuery.of(context).size.width >= 768) ...[
+                  // DESKTOP: Autonomous status badge — no manual scan button
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isAnalyzing
+                          ? const Color(0xFFFFD700).withOpacity(0.1)
+                          : const Color(0xFF00FF88).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: isAnalyzing
+                            ? const Color(0xFFFFD700).withOpacity(0.5)
+                            : const Color(0xFF00FF88).withOpacity(0.4),
+                      ),
                     ),
-                  ],
-                ),
-                const SizedBox(width: 8),
-
-                // ⚡ RUN SWARM SCAN Button
-                ElevatedButton.icon(
-                  onPressed: isAnalyzing ? null : () => market.triggerSwarmAnalysis(activeSymbol),
-                  icon: isAnalyzing
-                      ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                      : const Icon(Icons.flash_on_rounded, size: 14),
-                  label: Text(
-                    isAnalyzing ? 'SWARM SCANNING...' : 'SCAN THE DEN NOW',
-                    style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6, height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isAnalyzing ? const Color(0xFFFFD700) : const Color(0xFF00FF88),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isAnalyzing ? 'SWARM ACTIVE' : 'AUTO 24/5',
+                          style: GoogleFonts.outfit(
+                            color: isAnalyzing ? const Color(0xFFFFD700) : const Color(0xFF00FF88),
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isAnalyzing ? Colors.white24 : const Color(0xFF00FF88),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  const SizedBox(width: 8),
+                ] else ...[
+                  // MOBILE: simple 24/5 AUTO badge — scanning is always automatic
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00FF88).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF00FF88).withOpacity(0.35)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 6, height: 6, decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFF00FF88))),
+                        const SizedBox(width: 6),
+                        Text('24/5 AUTO', style: GoogleFonts.outfit(color: const Color(0xFF00FF88), fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
+                  const SizedBox(width: 8),
+                ],
 
-                // STRIKE TRADE Button
+                // STRIKE TRADE Button — on all screens
                 ElevatedButton.icon(
                   onPressed: () => _executeDenStrike(context),
                   icon: const Icon(Icons.bolt_rounded, size: 14),

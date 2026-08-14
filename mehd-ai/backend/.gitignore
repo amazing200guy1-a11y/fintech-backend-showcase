@@ -10,6 +10,7 @@
 *.key
 serviceAccountKey*.json
 firebase-credentials*.json
+firebase-service-account*.json
 .prompt_vault.py
 .risk_kernel_state.json
 track_record.jsonl

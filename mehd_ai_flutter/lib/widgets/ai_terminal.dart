@@ -6,10 +6,9 @@ import 'package:mehd_ai_flutter/core/den_identity.dart';
 import 'package:mehd_ai_flutter/models/consensus_result.dart';
 import 'package:mehd_ai_flutter/widgets/analysis_progress_widget.dart';
 import 'package:mehd_ai_flutter/models/automated_drawing.dart';
+import 'package:mehd_ai_flutter/widgets/ai_terminal_extra_tabs.dart';
 import 'package:provider/provider.dart';
 import 'package:mehd_ai_flutter/services/settings_service.dart';
-import 'package:mehd_ai_flutter/core/api_service.dart';
-import 'package:mehd_ai_flutter/models/account_health.dart';
 import 'package:mehd_ai_flutter/services/news_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -65,52 +64,56 @@ class _AiTerminalState extends State<AiTerminal> {
   @override
   Widget build(BuildContext context) {
     final bool unanimous = widget.consensusResult?.proceed == true;
+    final bool isMobile = MediaQuery.of(context).size.width < 768;
 
     return Container(
       width: double.infinity,
       color: const Color(0xFF0D0D0D),
       child: SafeArea(
         bottom: true,
-        child: DefaultTabController(
-          length: 5,
-          child: Column(
-            children: [
-              SizedBox(
-                height: 38,
-                child: TabBar(
-                  isScrollable: false,
-                  labelColor: const Color(0xFF58A6FF),
-                  unselectedLabelColor: const Color(0xFF555555),
-                  indicatorColor: const Color(0xFF58A6FF),
-                  // Customize indicator weight and padding if needed
-                  indicatorWeight: 2,
-                  labelPadding: EdgeInsets.zero,
-                  tabs: [
-                    Tab(child: Text('TERM', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
-                    Tab(child: Text('NEWS', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
-                    Tab(child: Text('VOTES', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
-                    Tab(child: Text('DEN', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
-                    Tab(child: Text('ACCT', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: TabBarView(
+        child: isMobile
+            // ── MOBILE: clean Account metrics (Balance, Equity, Drawdown)
+            ? _buildAccountTab()
+            // ── DESKTOP: full 5-tab view
+            : DefaultTabController(
+                length: 5,
+                child: Column(
                   children: [
-                    _buildTerminalTab(),
-                    _buildNewsTab(),
-                    Container(
-                      color: unanimous ? const Color(0xFF2EA043).withOpacity(0.05) : Colors.transparent,
-                      child: _buildVotesTab(),
+                    SizedBox(
+                      height: 38,
+                      child: TabBar(
+                        isScrollable: false,
+                        labelColor: const Color(0xFF58A6FF),
+                        unselectedLabelColor: const Color(0xFF555555),
+                        indicatorColor: const Color(0xFF58A6FF),
+                        indicatorWeight: 2,
+                        labelPadding: EdgeInsets.zero,
+                        tabs: [
+                          Tab(child: Text('TERM', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
+                          Tab(child: Text('NEWS', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
+                          Tab(child: Text('VOTES', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
+                          Tab(child: Text('DEN', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
+                          Tab(child: Text('ACCT', style: GoogleFonts.jetBrainsMono(fontSize: 10, fontWeight: FontWeight.bold))),
+                        ],
+                      ),
                     ),
-                    _buildTheDenTab(),
-                    _buildAccountTab(),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _buildTerminalTab(),
+                          _buildNewsTab(),
+                          Container(
+                            color: unanimous ? const Color(0xFF2EA043).withOpacity(0.05) : Colors.transparent,
+                            child: _buildVotesTab(),
+                          ),
+                          _buildTheDenTab(),
+                          _buildAccountTab(),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -400,113 +403,7 @@ class _AiTerminalState extends State<AiTerminal> {
     );
   }
 
-  Widget _buildTheDenTab() {
-    // A static display of the 3-layer architecture map.
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildLayerBox(
-            'THE RESEARCH',
-            'Sift, Sentiment, Order Flow',
-            'Protects against retail crowding and sudden traps.',
-            const Color(0xFFBC8CFF),
-          ),
-          const SizedBox(height: 12),
-          _buildLayerBox(
-            'THE STRATEGY',
-            'Pattern, Structure, Trend',
-            'Protects against trading against the primary institutional momentum.',
-            const Color(0xFFFFD700),
-          ),
-          const SizedBox(height: 12),
-          _buildLayerBox(
-            'OLYMPUS',
-            'Math, Fractal, Volatility',
-            'Protects against low-probability mathematical environments.',
-            const Color(0xFFFF9F43),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _buildTheDenTab() => const AiTerminalDenTab();
 
-  Widget _buildLayerBox(String title, String subtitle, String tooltip, Color accent) {
-    return Tooltip(
-      message: tooltip,
-      textStyle: GoogleFonts.jetBrainsMono(color: Colors.white, fontSize: 11),
-      decoration: BoxDecoration(color: const Color(0xFF1A1A1A), border: Border.all(color: const Color(0xFF333333))),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF080808),
-          border: Border.all(color: const Color(0xFF1A1A1A)),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(width: 8, height: 8, color: accent),
-                const SizedBox(width: 8),
-                Text(title, style: GoogleFonts.jetBrainsMono(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(subtitle, style: GoogleFonts.jetBrainsMono(color: const Color(0xFF8B949E), fontSize: 10)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAccountTab() {
-    return FutureBuilder<AccountHealth>(
-      future: ApiService().getAccountHealth(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF58A6FF)));
-        }
-        
-        final health = snapshot.data;
-        final balance = health?.balance ?? 0.0;
-        final equity = health?.equity ?? 0.0;
-        final drawdown = health?.dailyDrawdownPct ?? 0.0;
-        
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMetric('Balance', '\$${balance.toStringAsFixed(2)}', Colors.white),
-              const SizedBox(height: 16),
-              _buildMetric('Equity', '\$${equity.toStringAsFixed(2)}', Colors.white),
-              const SizedBox(height: 32),
-              _buildMetric('Daily Drawdown', '${drawdown.toStringAsFixed(2)}%', drawdown > 2.0 ? const Color(0xFFFF3B3B) : const Color(0xFF2EA043)),
-              const SizedBox(height: 16),
-              _buildMetric('Status', health?.isLocked == true ? 'LOCKED' : 'ACTIVE', health?.isLocked == true ? const Color(0xFFFF3B3B) : const Color(0xFF58A6FF)),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMetric(String label, String value, Color valueColor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.jetBrainsMono(color: const Color(0xFF8B949E), fontSize: 11),
-        ),
-        Text(
-          value,
-          style: GoogleFonts.jetBrainsMono(color: valueColor, fontSize: 12, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
+  Widget _buildAccountTab() => const AiTerminalAccountTab();
 }

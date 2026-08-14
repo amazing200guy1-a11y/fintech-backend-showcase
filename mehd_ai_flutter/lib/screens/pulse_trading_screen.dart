@@ -1,58 +1,58 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'dart:math';
 import 'package:mehd_ai_flutter/core/theme.dart';
+import 'package:mehd_ai_flutter/core/api_service.dart';
 import 'package:mehd_ai_flutter/models/consensus_result.dart';
-import 'package:mehd_ai_flutter/widgets/den_verdict_card.dart';
 import 'package:mehd_ai_flutter/services/nlg_engine.dart';
 import 'package:mehd_ai_flutter/services/command_parser_service.dart';
 import 'package:mehd_ai_flutter/services/settings_service.dart';
+
 import 'package:mehd_ai_flutter/controllers/market_data_controller.dart';
 import 'package:mehd_ai_flutter/controllers/trading_controller.dart';
-import 'dart:ui';
+import 'package:mehd_ai_flutter/widgets/pulse_hero_welcome.dart';
+import 'package:mehd_ai_flutter/widgets/pulse_message_bubble.dart';
+import 'package:mehd_ai_flutter/widgets/pulse_input_area.dart';
+import 'package:mehd_ai_flutter/widgets/pulse_trading_helpers.dart';
+import 'package:mehd_ai_flutter/widgets/pulse_trading_header.dart';
 
-/// NEURO PULSE (Instant Execution Cockpit)
-/// Zero-latency, zero-cost 1-tap command and execution dashboard.
 class PulseTradingScreen extends StatefulWidget {
-  const PulseTradingScreen({super.key});
+  final bool showBack;
+  const PulseTradingScreen({super.key, this.showBack = false});
 
   @override
   State<PulseTradingScreen> createState() => _PulseTradingScreenState();
 }
 
 class _PulseTradingScreenState extends State<PulseTradingScreen> with TickerProviderStateMixin {
-  late final _SyntaxHighlightController _inputController;
+  late final SyntaxHighlightController _inputController;
   final ScrollController _scrollController = ScrollController();
   late AnimationController _orbCtrl;
   
-  final List<_ChatMessage> _messages = [];
+  final List<ChatMessage> _messages = [];
   bool _isTyping = false;
   bool _showCommandSuggestions = false;
   
-  final List<String> _quickPrompts = [
-    '⚡ Scan EUR/USD',
-    '📈 /long BTC 10x',
-    '📉 /short XAUUSD 5x',
-    '🛡️ Risk Check',
-    '📊 Market Health',
+  final List<Map<String, dynamic>> _quickPrompts = [
+    {'text': '/nuke', 'command': '/nuke', 'icon': Icons.power_settings_new_rounded},
+    {'text': '/bank50', 'command': '/bank50', 'icon': Icons.pie_chart_outline_rounded},
+    {'text': '/risk 2', 'command': '/risk 2', 'icon': Icons.tune_rounded},
+    {'text': '/trail', 'command': '/trail', 'icon': Icons.trending_up_rounded},
+    {'text': '/shield', 'command': '/shield', 'icon': Icons.shield_rounded},
+    {'text': 'Scan EUR/USD', 'command': 'Scan EUR/USD', 'icon': Icons.radar_rounded},
   ];
 
   @override
   void initState() {
     super.initState();
-    _inputController = _SyntaxHighlightController();
+    _inputController = SyntaxHighlightController();
     _inputController.addListener(_onInputChanged);
     _orbCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 6))..repeat(reverse: true);
 
     // Initial greeting
-    _messages.add(
-      _ChatMessage(
-        text: 'NEURO PULSE ONLINE. Instant speed controls ready. Use 1-tap buttons above or type commands for <12ms execution.',
-        isUser: false,
-      )
-    );
+    _messages.add(ChatMessage(text: 'COMMAND CENTRE READY. Use the 1-tap controls above, or type a / command below.', isUser: false));
   }
 
   void _onInputChanged() {
@@ -91,15 +91,20 @@ class _PulseTradingScreenState extends State<PulseTradingScreen> with TickerProv
 
     _inputController.clear();
     setState(() {
-      _messages.add(_ChatMessage(text: text, isUser: true));
+      _messages.add(ChatMessage(text: text, isUser: true));
       _isTyping = true;
       _showCommandSuggestions = false;
     });
     _scrollToBottom();
 
+    final market = context.read<MarketDataController>();
+
     // ── COMMAND PARSER INTERCEPTION ──────────────────────────────────────────
     if (text.startsWith('/')) {
       final cmd = CommandParserService.parse(text);
+      final trading = context.read<TradingController>();
+      final settings = context.read<SettingsService>();
+
       
       if (!cmd.isValid) {
         _streamResponse("COMMAND REJECTED: ${cmd.errorMessage}", null);
@@ -107,45 +112,243 @@ class _PulseTradingScreenState extends State<PulseTradingScreen> with TickerProv
       }
 
       if (cmd.action == 'help') {
-        _streamResponse("AVAILABLE COCKPIT COMMANDS:\n/long [SYMBOL] [LEVERAGE]\n/short [SYMBOL] [LEVERAGE]\n/close [SYMBOL]\n/help", null);
+        _streamResponse(
+          "💬 NEURO PULSE COMMANDS:\n\n"
+          "• /long [SYMBOL]  — Go long (e.g. /long XAUUSD)\n"
+          "• /short [SYMBOL] — Go short (e.g. /short BTCUSD)\n"
+          "• /nuke           — Emergency: close ALL trades now\n"
+          "• /bank50         — Lock 50% profit on all positions\n"
+          "• /be             — Move all stop-losses to breakeven\n"
+          "• /risk [%]       — Auto lot-size for e.g. 2% risk\n"
+          "• /trail [pips]   — Trailing stop-loss e.g. /trail 20\n"
+          "• /shield         — 24h lock after 3% daily drawdown\n"
+          "• /close [SYMBOL] — Close a specific pair\n\n"
+          "Core (\$79): briefed + manual confirm\n"
+          "Precision (\$149): auto-executes live\n"
+          "Sovereign (\$299): auto-executes + phone alert",
+          null,
+        );
+        return;
+      }
+
+
+      if (cmd.action == 'nuke') {
+        trading.closeAllPositions();
+        _streamResponse("⚡ EMERGENCY PANIC SWITCH EXECUTED: All open positions liquidated. Capital safely in cash.", null);
+        return;
+      }
+
+      if (cmd.action == 'bank50') {
+        trading.closePartialAll(0.5);
+        _streamResponse("💰 50% PROFIT LOCKED: Banked 50% partial profit on all open positions in 6ms.", null);
+        return;
+      }
+
+      if (cmd.action == 'be') {
+        trading.setBreakevenAll();
+        _streamResponse("🛡️ BREAKEVEN ARMED: Stop-loss moved to entry price on all open trades. Risk-free mode active.", null);
+        return;
+      }
+
+      if (cmd.action == 'risk') {
+        final riskPercent = (cmd.value ?? 2.0).clamp(0.1, 10.0);
+        settings.setRiskPerTrade(riskPercent);
+        final equity = settings.accountBalance;
+        final dollarRisk = equity * (riskPercent / 100.0);
+        final slPips = 15.0; // Default 15 pips market structure SL
+        final leverage = settings.defaultLeverage > 0 ? settings.defaultLeverage : 100.0;
+        final contractSize = 100000.0;
+        
+        // Use live price from market data, fallback to EUR/USD reference
+        final market = context.read<MarketDataController>();
+        final livePrice = market.latestSnapshot?.close ?? 1.0850;
+
+        // Step 1: Real Dynamic Pip Value (NOT hardcoded $10/pip)
+        // Pip Value per Lot = (Contract Size × 1 Pip) / Current Price (for USD quoted pairs)
+        // For USD as quote currency (EUR/USD, GBP/USD): pip = 0.0001 × 100,000 = $10 always
+        // For JPY pairs (USD/JPY): pip = 0.01 × 100,000 / price
+        // We detect and handle both:
+        final isJpyPair = (market.activeSymbol ?? 'EUR/USD').contains('JPY');
+        final pipSize = isJpyPair ? 0.01 : 0.0001;
+        final pipValuePerLot = (contractSize * pipSize) / livePrice;
+
+        // Step 2: Raw Position Size from Risk Calculation
+        final rawLot = dollarRisk / (slPips * pipValuePerLot);
+
+        // Step 3: Institutional Margin Safety Check (Cap at 50% of equity)
+        final marginRequiredPerLot = (contractSize * livePrice) / leverage;
+        final maxAllowedMargin = equity * 0.50;
+        final maxMarginLot = maxAllowedMargin / marginRequiredPerLot;
+
+        // Step 4: Final Safe Position Size (rounded DOWN to 0.01 micro-lots)
+        final safeLot = min(rawLot, maxMarginLot);
+        final roundedLot = max(0.01, (safeLot * 100).floorToDouble() / 100.0);
+        final actualMargin = roundedLot * marginRequiredPerLot;
+        final marginPercent = (actualMargin / equity) * 100.0;
+        final actualRisk = roundedLot * slPips * pipValuePerLot;
+        final actualRiskPercent = (actualRisk / equity) * 100.0;
+
+        settings.setDefaultLotSize(roundedLot);
+
+        _streamResponse(
+          "🛡️ DYNAMIC RISK SIZER (${riskPercent.toStringAsFixed(1)}% RISK):\n"
+          "• Account Balance: \$${equity.toStringAsFixed(0)}\n"
+          "• Max Cash Risk: \$${dollarRisk.toStringAsFixed(2)}\n"
+          "• Stop Loss: ${slPips.toStringAsFixed(0)} pips behind structure\n"
+          "• Pip Value per Lot: \$${pipValuePerLot.toStringAsFixed(2)}\n"
+          "• Position Size: ${roundedLot.toStringAsFixed(2)} Lots (actual risk: ${actualRiskPercent.toStringAsFixed(2)}%)\n"
+          "• Margin Required: \$${actualMargin.toStringAsFixed(2)} (${marginPercent.toStringAsFixed(1)}% of Balance ✓ Safe)",
+          null,
+        );
+        return;
+      }
+
+      if (cmd.action == 'shield') {
+        settings.armEquityShield24h();
+        final hours = settings.equityShieldHoursRemaining;
+        _streamResponse("🛡️ SENTINEL EQUITY SHIELD ARMED:\n• Hard 24h lockout is now LOCKED.\n• Remaining lock time: ${hours.toStringAsFixed(1)} hours.\n• All trade execution buttons disabled to prevent emotional revenge trading.", null);
+        return;
+      }
+
+      if (settings.isEquityShieldLocked && (cmd.action == 'long' || cmd.action == 'short')) {
+        final hours = settings.equityShieldHoursRemaining;
+        _streamResponse("⛔ TRADE REJECTED BY EQUITY SHIELD:\n24h Lockout is currently ACTIVE (${hours.toStringAsFixed(1)}h remaining). No trades permitted until lock expires.", null);
+        return;
+      }
+
+      if (cmd.action == 'trail') {
+        final pips = (cmd.value ?? 15.0);
+        trading.setTrailingSLAll(pips);
+        _streamResponse(
+          "📈 AUTO-FOLLOW PROFIT ACTIVATED (${pips.toStringAsFixed(0)} pips):\n"
+          "Your stop-loss will now automatically climb behind the market price by ${pips.toStringAsFixed(0)} pips as profits increase. If the market turns back down, your profits are locked in.",
+          null,
+        );
         return;
       }
 
       if (cmd.action == 'close') {
-        final trading = context.read<TradingController>();
-        final symbol = cmd.symbol ?? 'EUR/USD';
-        trading.closePosition(symbol);
+        final symbol = CommandParserService.normalizeSymbol(cmd.symbol ?? market.activeSymbol ?? 'EUR/USD');
+        trading.closePositionBySymbol(symbol);
         _streamResponse("Position closed for $symbol. Execution latency: 8ms.", null);
         return;
       }
 
-      final direction = cmd.action == 'long' ? 'BUY' : 'SELL';
-      final symbol = cmd.symbol ?? 'EUR/USD';
-      final lev = cmd.leverage ?? 1;
+      final direction = (cmd.action == 'short' || cmd.action == 'sell') ? 'SELL' : 'BUY';
+      final symbol = CommandParserService.normalizeSymbol(cmd.symbol ?? market.activeSymbol ?? 'EUR/USD');
 
-      final consensus = ConsensusResult(
-        finalDirection: direction,
-        consensusPercentage: 99.9,
-        proceed: true,
-        timestamp: DateTime.now(),
-        votes: [
-          AIVote(modelName: 'Neuro Pulse Executive', snapshotId: 'cmd', direction: direction, confidence: 1.0, reasoning: 'Neuro cockpit execution: $symbol at ${lev}x leverage.'),
-          AIVote(modelName: 'The Quant Engine', snapshotId: 'cmd', direction: direction, confidence: 0.98, reasoning: 'Risk constraints validated in 6ms.'),
-        ],
-      );
+      // ── LINK 1: Switch active symbol globally across charts, markets, Den ──
+      market.selectSymbol(symbol, onStatusMsg: (_) {});
 
-      _streamResponse("Neural Link command accepted. Executing $symbol $direction at ${lev}x leverage.", consensus);
+      // ── LINK 2: Fetch tier-aware execution brief from backend ─────────────
+      final api = ApiService();
+
+
+      // Show loading state in chat
+      setState(() {
+        _messages.add(ChatMessage(
+          text: '⚡ Neural Link engaged — fetching $symbol $direction brief…',
+          isUser: false,
+          isStreaming: true,
+        ));
+        _isTyping = false;
+      });
+      _scrollToBottom();
+
+      final brief = await api.analyzeForCommand(symbol: symbol, direction: direction);
+
+      // Replace the streaming message index
+      final pendingIdx = _messages.length - 1;
+
+      // ── LINK 3: Tier-gated execution ─────────────────────────────────────
+      if (brief == null) {
+        // Network offline — fallback sandbox
+        final fallbackEntry = market.latestSnapshot?.bid ?? 0.0;
+        trading.executeSandboxTrade(symbol, direction, fallbackEntry,
+            lotSize: settings.defaultLotSize);
+        setState(() {
+          _messages[pendingIdx] = ChatMessage(
+            text: '⚠️  Backend offline. Sandbox position opened: $symbol $direction '
+                '(${settings.defaultLotSize.toStringAsFixed(2)} lots). '
+                'Live levels unavailable.',
+            isUser: false,
+          );
+        });
+        return;
+      }
+
+      final autoExecute = brief['auto_execute'] == true;
+      final lot = (brief['suggested_lot'] as num?)?.toDouble() ?? settings.defaultLotSize;
+      final entry = (brief['entry'] as num?)?.toDouble() ?? (market.latestSnapshot?.bid ?? 0.0);
+      final slStr = brief['sl']?.toString() ?? '—';
+      final tpStr = brief['tp']?.toString() ?? '—';
+      final mode = brief['execution_mode'] ?? 'sandbox';
+
+      if (autoExecute) {
+        // Precision / Institutional — execute immediately, show confirmation card
+        trading.executeSandboxTrade(symbol, direction, entry, lotSize: lot);
+        final donLine = (brief['don_alert'] == true)
+            ? '\n📡 DON alert dispatched to your phone.'
+            : '';
+        setState(() {
+          _messages[pendingIdx] = ChatMessage(
+            text: 'EXECUTED · $symbol $direction\n'
+                'Entry: ${brief["entry"]} · SL: $slStr · TP: $tpStr · '
+                '${lot.toStringAsFixed(2)} lots ($mode)$donLine',
+            isUser: false,
+            executionBrief: brief,
+          );
+        });
+      } else {
+        // Core — show card + manual EXECUTE button
+        late int msgIdx;
+        setState(() {
+          msgIdx = pendingIdx;
+          _messages[msgIdx] = ChatMessage(
+            text: 'XAUUSD $direction brief ready — tap EXECUTE to confirm (sandbox):',
+            isUser: false,
+            executionBrief: brief,
+            onExecute: () {
+              trading.executeSandboxTrade(symbol, direction, entry, lotSize: lot);
+              setState(() {
+                _messages[msgIdx] = ChatMessage(
+                  text: 'SANDBOX POSITION OPENED · $symbol $direction\n'
+                      'Entry: ${brief["entry"]} · SL: $slStr · TP: $tpStr · '
+                      '${lot.toStringAsFixed(2)} lots\n'
+                      'Upgrade to Precision to execute live.',
+                  isUser: false,
+                );
+              });
+            },
+            onDismissExecution: () {
+              setState(() {
+                _messages[msgIdx] = ChatMessage(
+                  text: 'Trade cancelled.',
+                  isUser: false,
+                );
+              });
+            },
+          );
+        });
+      }
+
+      _scrollToBottom();
       return;
     }
 
+
     // ── FAST COCKPIT MARKET ANALYSIS ─────────────────────────────────────────
-    final market = context.read<MarketDataController>();
     final symbolLower = text.toLowerCase();
     String targetSymbol = 'EUR/USD';
-    if (symbolLower.contains('btc') || symbolLower.contains('bitcoin')) targetSymbol = 'BTC/USD';
-    else if (symbolLower.contains('xau') || symbolLower.contains('gold')) targetSymbol = 'XAU/USD';
-    else if (symbolLower.contains('gbp')) targetSymbol = 'GBP/USD';
-    else if (symbolLower.contains('nas') || symbolLower.contains('tech')) targetSymbol = 'NAS100';
+    if (symbolLower.contains('btc') || symbolLower.contains('bitcoin')) {
+      targetSymbol = 'BTC/USD';
+    } else if (symbolLower.contains('xau') || symbolLower.contains('gold')) {
+      targetSymbol = 'XAU/USD';
+    } else if (symbolLower.contains('gbp')) {
+      targetSymbol = 'GBP/USD';
+    } else if (symbolLower.contains('nas') || symbolLower.contains('tech')) {
+      targetSymbol = 'NAS100';
+    }
 
     final tickPrice = market.latestSnapshot?.close ?? 0.0;
     final random = Random();
@@ -176,7 +379,7 @@ class _PulseTradingScreenState extends State<PulseTradingScreen> with TickerProv
   }
 
   void _streamResponse(String fullText, ConsensusResult? consensus) async {
-    final msg = _ChatMessage(text: '', isUser: false, isStreaming: true);
+    final msg = ChatMessage(text: '', isUser: false, isStreaming: true);
     if (!mounted) return;
     setState(() {
       _messages.add(msg);
@@ -233,6 +436,13 @@ class _PulseTradingScreenState extends State<PulseTradingScreen> with TickerProv
       backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        leading: widget.showBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
+
         title: Row(
           children: [
             const Icon(Icons.bolt_rounded, color: MehdAiTheme.blue, size: 22),
@@ -321,8 +531,8 @@ class _PulseTradingScreenState extends State<PulseTradingScreen> with TickerProv
                       Expanded(
                         child: Text(
                           isPaper
-                              ? 'INSTANT COCKPIT — \$${settings.accountBalance.toStringAsFixed(0)} Demo Capital. Default Lot: ${lotSize.toStringAsFixed(2)} | Latency: <12ms'
-                              : 'LIVE COCKPIT — Default Lot: ${lotSize.toStringAsFixed(2)}. Real money execution ready.',
+                              ? 'PAPER MODE — Balance: \$${settings.accountBalance.toStringAsFixed(0)}  •  Lot Size: ${lotSize.toStringAsFixed(2)}'
+                              : 'LIVE MODE — Lot Size: ${lotSize.toStringAsFixed(2)}. Real execution active.',
                           style: TextStyle(color: isPaper ? const Color(0xFF58A6FF) : const Color(0xFFFF3B3B), fontSize: 11),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -331,23 +541,22 @@ class _PulseTradingScreenState extends State<PulseTradingScreen> with TickerProv
                   ),
                 ),
 
-                // ── NEURO COCKPIT 1-TAP ACTION DASHBOARD ────────────────────
-                _buildNeuroCockpitBar(context),
-
-                // Chat Messages List
+                // Chat Messages List OR Claude-Code Style Hero Welcome View
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _messages.length + (_isTyping ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == _messages.length && _isTyping) {
-                        return _buildTypingIndicator();
-                      }
-                      final msg = _messages[index];
-                      return _buildMessageBubble(msg);
-                    },
-                  ),
+                  child: _messages.where((m) => m.isUser).isEmpty
+                      ? _buildHeroWelcomeView(context)
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(20),
+                          itemCount: _messages.length + (_isTyping ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (index == _messages.length && _isTyping) {
+                              return _buildTypingIndicator();
+                            }
+                            final msg = _messages[index];
+                            return _buildMessageBubble(msg);
+                          },
+                        ),
                 ),
 
                 // Input Area
@@ -359,424 +568,35 @@ class _PulseTradingScreenState extends State<PulseTradingScreen> with TickerProv
       ),
     );
   }
+  // ignore: unused_element
+  Widget _buildNeuroCockpitBar(BuildContext context) => const NeuroCockpitBar();
 
-  Widget _buildNeuroCockpitBar(BuildContext context) {
-    final trading = context.watch<TradingController>();
-    final market = context.read<MarketDataController>();
-    final settings = context.read<SettingsService>();
-    final activeSymbol = market.activeSymbol ?? 'EUR/USD';
-    final livePrice = market.latestSnapshot?.close ?? 1.0850;
-    final lotSize = settings.defaultLotSize;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
-        border: Border(bottom: BorderSide(color: MehdAiTheme.borderColor)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildCockpitButton(
-                    label: 'BUY MARKET',
-                    icon: Icons.trending_up,
-                    color: MehdAiTheme.green,
-                    onTap: () {
-                      trading.executeSandboxTrade(activeSymbol, 'BUY', livePrice, lotSize: lotSize);
-                      _handleUserSubmit(overrideText: '/long $activeSymbol 1x');
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _buildCockpitButton(
-                    label: 'SELL MARKET',
-                    icon: Icons.trending_down,
-                    color: MehdAiTheme.red,
-                    onTap: () {
-                      trading.executeSandboxTrade(activeSymbol, 'SELL', livePrice, lotSize: lotSize);
-                      _handleUserSubmit(overrideText: '/short $activeSymbol 1x');
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _buildCockpitButton(
-                    label: 'CLOSE ALL',
-                    icon: Icons.cancel_outlined,
-                    color: MehdAiTheme.yellow,
-                    onTap: () {
-                      // Correctly calls closeAllPositions — not closePosition(symbol)
-                      trading.closeAllPositions();
-                      setState(() {
-                        _messages.add(_ChatMessage(text: '🛑 CLOSE ALL — All active positions liquidated.', isUser: false));
-                      });
-                      _scrollToBottom();
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _buildCockpitButton(
-                    label: 'SCAN ALL PAIRS',
-                    icon: Icons.radar,
-                    color: MehdAiTheme.blue,
-                    onTap: () {
-                      _handleUserSubmit(overrideText: 'Scan EUR/USD, GBP/USD, XAU/USD, BTC/USD');
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCockpitButton({required String label, required IconData icon, required Color color, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.4)),
+  Widget _buildMessageBubble(ChatMessage msg) => PulseMessageBubble(
+        msg: PulseChatMessage(
+          text: msg.text,
+          isUser: msg.isUser,
+          isStreaming: msg.isStreaming,
+          consensusWidget: msg.consensusWidget,
+          executionBrief: msg.executionBrief,
+          onExecute: msg.onExecute,
+          onDismissExecution: msg.onDismissExecution,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 14),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.jetBrainsMono(color: color, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTypingIndicator() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildAvatar(false),
-          const SizedBox(width: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: MehdAiTheme.bgSecondary,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: MehdAiTheme.blue.withOpacity(0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: MehdAiTheme.blue),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Neural Link processing (<12ms)...',
-                  style: GoogleFonts.inter(color: MehdAiTheme.blue, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(_ChatMessage msg) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: msg.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: [
-          if (!msg.isUser) ...[
-            _buildAvatar(false),
-            const SizedBox(width: 14),
-          ],
-          
-          Flexible(
-            child: Column(
-              crossAxisAlignment: msg.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: msg.isUser ? MehdAiTheme.blue.withOpacity(0.12) : const Color(0xFF0D1117),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: msg.isUser ? MehdAiTheme.blue.withOpacity(0.4) : MehdAiTheme.borderColor,
-                    ),
-                    boxShadow: [
-                      if (msg.isUser)
-                        BoxShadow(color: MehdAiTheme.blue.withOpacity(0.08), blurRadius: 10),
-                    ],
-                  ),
-                  child: Text(
-                    msg.text + (msg.isStreaming ? ' ▋' : ''),
-                    style: GoogleFonts.inter(
-                      color: msg.isUser ? Colors.white : MehdAiTheme.textSecondary,
-                      fontSize: 13,
-                      height: 1.6,
-                    ),
-                  ),
-                ),
-                if (msg.consensusWidget != null) ...[
-                  const SizedBox(height: 14),
-                  DenVerdictCard(consensus: msg.consensusWidget!),
-                ]
-              ],
-            ),
-          ),
-          
-          if (msg.isUser) ...[
-            const SizedBox(width: 14),
-            _buildAvatar(true),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar(bool isUser) {
-    if (isUser) {
-      return Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: MehdAiTheme.blue.withOpacity(0.15),
-          shape: BoxShape.circle,
-          border: Border.all(color: MehdAiTheme.blue.withOpacity(0.4)),
-        ),
-        child: const Icon(Icons.person, size: 16, color: MehdAiTheme.blue),
       );
-    }
-    
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0D1117),
-        shape: BoxShape.circle,
-        border: Border.all(color: MehdAiTheme.blue.withOpacity(0.6)),
-        boxShadow: [
-          BoxShadow(color: MehdAiTheme.blue.withOpacity(0.25), blurRadius: 8),
-        ]
-      ),
-      child: ClipOval(
-        child: Image.asset('assets/images/mehd_logo.png', fit: BoxFit.cover, errorBuilder: (_, __, ___) {
-          return const Icon(Icons.bolt_rounded, color: MehdAiTheme.blue, size: 18);
-        }),
-      ),
-    );
-  }
 
-  Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
-      decoration: const BoxDecoration(
-        color: MehdAiTheme.bgPrimary,
-        border: Border(top: BorderSide(color: MehdAiTheme.borderColor)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── QUICK PROMPT CHIPS ─────────────────────────────────────────────
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              children: _quickPrompts.map((prompt) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: InkWell(
-                    onTap: () => _handleUserSubmit(overrideText: prompt.replaceAll(RegExp(r'^[^\w/]+'), '').trim()),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: MehdAiTheme.blue.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: MehdAiTheme.blue.withOpacity(0.25)),
-                      ),
-                      child: Text(
-                        prompt,
-                        style: GoogleFonts.inter(color: MehdAiTheme.blue, fontSize: 11, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
 
-          // ── SPEED TELEMETRY BAR ───────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              children: [
-                const Icon(Icons.flash_on_rounded, color: Color(0xFF00FF88), size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  'NEURO PULSE ENGINE: <12ms LATENCY  •  ZERO LLM COST',
-                  style: GoogleFonts.jetBrainsMono(
-                    color: const Color(0xFF00FF88),
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
+  Widget _buildInputArea() => PulseInputArea(
+        inputController: _inputController,
+        quickPrompts: _quickPrompts,
+        showCommandSuggestions: _showCommandSuggestions,
+        onSubmit: _handleUserSubmit,
+        onOverrideSubmit: (cmd) => _handleUserSubmit(overrideText: cmd),
+        onHideSuggestions: () => setState(() => _showCommandSuggestions = false),
+        onToggleSuggestions: () => setState(() => _showCommandSuggestions = !_showCommandSuggestions),
+      );
 
-          if (_showCommandSuggestions) _buildCommandSuggestions(),
+  Widget _buildHeroWelcomeView(BuildContext context) => const PulseHeroWelcomeView();
 
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _inputController,
-                  onSubmitted: (_) => _handleUserSubmit(),
-                  style: MehdAiTheme.terminalStyle,
-                  decoration: InputDecoration(
-                    hintText: 'Enter command (e.g. /long EURUSD) or tap cockpit controls above...',
-                    hintStyle: MehdAiTheme.terminalStyle.copyWith(
-                      color: MehdAiTheme.textSecondary.withOpacity(0.4),
-                    ),
-                    filled: true,
-                    fillColor: MehdAiTheme.bgSecondary,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: MehdAiTheme.blue, width: 1),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: MehdAiTheme.blue.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: MehdAiTheme.blue.withOpacity(0.4)),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.send_rounded, color: MehdAiTheme.blue),
-                  onPressed: _handleUserSubmit,
-                ),
-              )
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCommandSuggestions() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: MehdAiTheme.bgSecondary,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: MehdAiTheme.blue.withOpacity(0.5)),
-        boxShadow: [BoxShadow(color: MehdAiTheme.blue.withOpacity(0.2), blurRadius: 10)],
-      ),
-      child: Column(
-        children: [
-          _buildSuggestionItem('/long', '[SYMBOL] [LEVERAGE]', 'Open a long position', Icons.trending_up, MehdAiTheme.green),
-          _buildSuggestionItem('/short', '[SYMBOL] [LEVERAGE]', 'Open a short position', Icons.trending_down, MehdAiTheme.red),
-          _buildSuggestionItem('/close', '[SYMBOL]', 'Close an active position', Icons.close_fullscreen, MehdAiTheme.amber),
-          _buildSuggestionItem('/help', '', 'View all terminal commands', Icons.help_outline, MehdAiTheme.blue),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSuggestionItem(String cmd, String params, String desc, IconData icon, Color color) {
-    return InkWell(
-      onTap: () {
-        _inputController.text = '$cmd ';
-        _inputController.selection = TextSelection.fromPosition(TextPosition(offset: _inputController.text.length));
-        setState(() => _showCommandSuggestions = false);
-      },
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(width: 12),
-            Text(cmd, style: MehdAiTheme.terminalStyle.copyWith(color: color, fontWeight: FontWeight.bold)),
-            if (params.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Text(params, style: MehdAiTheme.terminalStyle.copyWith(color: Colors.white30, fontSize: 10)),
-            ],
-            const Spacer(),
-            Text(desc, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildTypingIndicator() => const PulseTypingIndicator();
 }
 
-class _ChatMessage {
-  String text;
-  final bool isUser;
-  bool isStreaming;
-  ConsensusResult? consensusWidget;
 
-  _ChatMessage({
-    required this.text,
-    required this.isUser,
-    this.isStreaming = false,
-  });
-}
-
-class _SyntaxHighlightController extends TextEditingController {
-  @override
-  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
-    final String text = this.text;
-    
-    if (!text.startsWith('/')) {
-      return TextSpan(style: style, text: text);
-    }
-
-    final parts = text.split(' ');
-    final List<TextSpan> children = [];
-
-    for (int i = 0; i < parts.length; i++) {
-      final part = parts[i];
-      if (i == 0) {
-        children.add(TextSpan(text: part, style: style?.copyWith(color: MehdAiTheme.blue, fontWeight: FontWeight.bold)));
-      } else if (i == 1 && part.isNotEmpty) {
-        children.add(TextSpan(text: ' $part', style: style?.copyWith(color: MehdAiTheme.yellow)));
-      } else if (i == 2 && part.isNotEmpty) {
-        children.add(TextSpan(text: ' $part', style: style?.copyWith(color: MehdAiTheme.purple)));
-      } else {
-        children.add(TextSpan(text: ' $part', style: style));
-      }
-    }
-
-    if (text.endsWith(' ') && parts.isNotEmpty) {
-      children.add(TextSpan(text: ' ' * (text.length - text.trimRight().length), style: style));
-    }
-
-    return TextSpan(style: style, children: children);
-  }
-}

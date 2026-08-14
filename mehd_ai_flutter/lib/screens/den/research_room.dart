@@ -6,6 +6,7 @@ import 'package:mehd_ai_flutter/core/den_identity.dart';
 import 'package:mehd_ai_flutter/widgets/den_loading_widget.dart';
 import 'package:mehd_ai_flutter/widgets/glass_agent_card.dart';
 import 'package:mehd_ai_flutter/widgets/techno_card.dart';
+import 'package:mehd_ai_flutter/widgets/shimmer_skeleton.dart';
 
 /// FILE — research_room.dart
 ///
@@ -93,10 +94,7 @@ class _ResearchRoomState extends State<ResearchRoom> {
       children: [
         _buildRoomHeader(),
         if (_isLoadingSpecialized)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: MehdAiTheme.blue)),
-          )
+          const RoomCardSkeleton()
         else if (_specializedResponse != null)
           _buildSpecializedCard(),
         const SizedBox(height: 24),
@@ -174,6 +172,7 @@ class _ResearchRoomState extends State<ResearchRoom> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildEmptyState() {
     return Center(
       child: Column(

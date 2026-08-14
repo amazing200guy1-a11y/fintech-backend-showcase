@@ -27,4 +27,4 @@ async def _call_perplexity(symbol: str, snapshot: MarketSnapshot, client: httpx.
     )
     resp.raise_for_status()
     text = resp.json()["choices"][0]["message"]["content"]
-    return _parse_llm_json(text, "perplexity", snapshot.id)
+    return _parse_llm_json(text, "sonar-small-online", snapshot.id)

@@ -56,7 +56,7 @@ def mock_signal():
         id=snapshot_id,
         symbol="EUR/USD",
         final_direction=Direction.BUY,
-        consensus_percentage=82.0,
+        consensus_percentage=93.0,  # Above the 92% notification threshold
         proceed=True,
         votes=votes,
         chairman_summary="The Den confirms bullish momentum.",
@@ -127,12 +127,12 @@ class TestNotifications:
     """Push notifications must only fire for strong signals."""
 
     def test_strong_signal_generates_notification(self, mock_signal):
-        """82% consensus should generate a notification."""
+        """93% consensus should generate a notification (threshold is 92%)."""
         notif = mock_signal.to_notification()
         assert notif is not None
         assert "EUR/USD" in notif["title"]
         assert "BUY" in notif["title"]
-        assert "82%" in notif["body"]
+        assert "93%" in notif["body"]
 
     def test_weak_signal_suppressed(self, mock_signal):
         """Below 70% consensus should NOT generate a notification."""
@@ -183,9 +183,9 @@ class TestHistory:
 class TestConfiguration:
     """Broadcast configuration sanity checks."""
 
-    def test_thirteen_pairs_monitored(self):
-        """Must monitor all 13 core pairs."""
-        assert len(BROADCAST_PAIRS) == 13
+    def test_fifteen_pairs_monitored(self):
+        """Must monitor all 15 institutional pairs."""
+        assert len(BROADCAST_PAIRS) == 15
         assert "EUR/USD" in BROADCAST_PAIRS
         assert "XAU/USD" in BROADCAST_PAIRS
 
@@ -196,7 +196,7 @@ class TestConfiguration:
         assert "cycle_count" in status
         assert "total_broadcasts" in status
         assert "pairs_monitored" in status
-        assert status["pairs_monitored"] == 13
+        assert status["pairs_monitored"] == 15
 
 
 # ──────────────────────────────────────────────

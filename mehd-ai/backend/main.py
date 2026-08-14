@@ -78,6 +78,7 @@ from routes.account import router as account_router
 from routes.admin import router as admin_router
 from routes.broadcast import router as broadcast_router
 from routes.payments import router as payments_router
+from routes.websocket_signals import router as ws_router, init_ws_redis_listener
 from auth import auth_router
 
 # ──────────────────────────────────────────────
@@ -109,173 +110,17 @@ audit_logger.addHandler(_audit_handler)
 #  Startup / Shutdown Lifecycle
 # ──────────────────────────────────────────────
 
-_risk_task: asyncio.Task | None = None
-_risk_process = None
-
-async def _run_risk_microservice():
-    global _risk_process
-    consecutive_errors = 0
-    try:
-        while True:
-            logger.info("Starting Risk Microservice on 127.0.0.1:8001...")
-            import sys
-            import subprocess
-            import os
-            
-            minimal_env = {
-                "RISK_INTERNAL_TOKEN": os.environ.get("RISK_INTERNAL_TOKEN", ""),
-                "PATH": os.environ.get("PATH", ""),
-                "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
-                # Windows-critical: Python stdlib (ssl, socket, tempfile) requires these
-                "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
-                "VIRTUAL_ENV": os.environ.get("VIRTUAL_ENV", ""),
-                "USERPROFILE": os.environ.get("USERPROFILE", ""),
-            }
-            
-            _risk_process = subprocess.Popen(
-                [sys.executable, "-m", "uvicorn", "risk_microservice:app", "--host", "127.0.0.1", "--port", "8001"],
-                env=minimal_env
-            )
-            boot_time = time.time()
-
-            # Report healthy once booted
-            from system_health import health_registry
-            await health_registry.report("risk_microservice", "GREEN", "Running on 127.0.0.1:8001")
-
-            # Wait for process to exit using asyncio thread to avoid blocking main thread
-            await asyncio.to_thread(_risk_process.wait)
-            
-            uptime = time.time() - boot_time
-            if uptime > 30.0:
-                # Ran for >30s before crashing — treat as transient, reset backoff
-                consecutive_errors = 1
-            else:
-                consecutive_errors += 1
-            sleep_time = min(60.0, 2.0 * (1.5 ** consecutive_errors))
-            logger.critical(f"Risk Microservice CRASHED after {uptime:.0f}s. Restarting in {sleep_time:.1f} seconds...")
-
-            # Report crash to health registry
-            _h_state = "RED" if consecutive_errors >= 3 else "YELLOW"
-            await health_registry.report("risk_microservice", _h_state,
-                f"Crashed after {uptime:.0f}s — restarting in {sleep_time:.0f}s", {
-                    "consecutive_crashes": consecutive_errors,
-                    "last_uptime_s": round(uptime, 1),
-                })
-
-            await asyncio.sleep(sleep_time)
-    except asyncio.CancelledError:
-        if _risk_process:
-            _risk_process.terminate()
-        logger.info("Risk Microservice shutdown.")
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup checks and graceful shutdown."""
-    
-    # Generate an internal secure token for the Risk Microservice if not already defined
-    if not os.environ.get("RISK_INTERNAL_TOKEN"):
-        import secrets
-        os.environ["RISK_INTERNAL_TOKEN"] = secrets.token_hex(32)
+    async def _on_strong_signal(notification: dict):
+        """Called by Broadcaster when a signal exceeds 92% conviction.
+        Sends directly to individual registered device tokens (not topic broadcast)
+        to prevent double-notifications for users subscribed to both channels.
+        """
+        await push_service.send_don_decided_alert(notification)
+    broadcaster.set_notification_callback(_on_strong_signal)
 
-    # Start the Risk Guard Auto-Restarting Daemon (only if running locally)
-    # If RISK_MICROSERVICE_URL points to a remote/different container (like http://risk:8001),
-    # we don't start the subprocess because a dedicated service is running.
-    microservice_url = os.environ.get("RISK_MICROSERVICE_URL", "http://127.0.0.1:8001")
-    if "127.0.0.1" in microservice_url or "localhost" in microservice_url:
-        global _risk_task
-        _risk_task = asyncio.create_task(_run_risk_microservice())
-        await asyncio.sleep(2)  # Give the microservice time to boot
-    else:
-        logger.info(f"Using external/containerized Risk Microservice at {microservice_url}")
-
-    # ── STARTUP ──────────────────────────────
-    logger.info("=" * 60)
-    logger.info("  MEHD AI — Starting up")
-    logger.info("=" * 60)
-
-    import state
-    await state.load_daily_spend_from_db()
-    logger.info(f"✓ Daily API spend loaded: ${state.daily_api_spend_usd:.2f} / ${state.DAILY_API_BUDGET_USD:.2f}")
-
-    # Self-check 1: Risk engine via Client
-    try:
-        health = await risk_client.get_account_health()
-        logger.info("✓ Risk engine microservice loaded — balance: $%.2f", health.balance)
-    except Exception as e:
-        logger.critical("✗ Risk engine FAILED to load: %s", e)
-        raise RuntimeError(f"Risk engine startup check failed: {e}") from e
-
-    # FIX M3: Restore risk kernel state from storage backend (multi-replica aware)
-    try:
-        from risk_engine import HardRiskKernel
-        kernel = HardRiskKernel()
-        await kernel.restore_from_storage()
-        logger.info("✓ Risk kernel state synced from storage backend")
-    except Exception as e:
-        logger.debug("Risk kernel storage restore skipped (non-fatal): %s", e)
-
-    # Self-check 2: Audit trail
-    try:
-        logger.info("✓ Audit trail initialised — session: %s", audit.session_id)
-    except Exception as e:
-        logger.error("✗ Audit trail issue (non-fatal): %s", e)
-
-    # Self-check 3: Den models
-    try:
-        model_status = await den_engine.health_check()
-        responding = sum(1 for s in model_status.values() if s == "responding")
-        logger.info("✓ The Den: %d/%d models responding", responding, len(model_status))
-    except Exception as e:
-        logger.error("✗ Den health check issue (non-fatal): %s", e)
-
-    # Start data streamer
-    try:
-        await streamer.start()
-        logger.info("✓ Market Data Streamer started")
-    except Exception as e:
-        logger.error("✗ Streamer startup issue (non-fatal): %s", e)
-
-    # Start background loops (if not running in decoupled worker mode)
-    if os.environ.get("DECOUPLED_WORKER_MODE", "").lower() == "true":
-        logger.info("ℹ️ Running in DECOUPLED_WORKER_MODE — Background worker daemons bypassed on API server.")
-    else:
-        # Start Black Swan Monitor
-        asyncio.create_task(black_swan.run_daemon())
-
-        # Start the Broadcaster — the Underground Research Daemon
-        # This runs 11 agents continuously in the background for all pairs,
-        # so every user gets instant results instead of waiting 20 seconds.
-        await broadcaster.start()
-        
-        # Start the Autopilot Execution Worker
-        auto_execution_worker.start()
-
-        # Start the Cleanup Worker to handle TTLs
-        cleanup_worker.start()
-
-        # Start the Weekly Scan Worker
-        weekly_scan_worker.start()
-
-        # Start the Truth Engine Worker (Scoreboard stats)
-        truth_engine_worker.start()
-
-        # Start the Personalization Worker (Chairman's Voice)
-        personalization_worker.start()
-
-        # Start the Sniper Engine (Virtual Stops)
-        virtual_stop_worker.start()
-
-        # Wire push notifications — "The Don Decided" FCM alerts for >= 92% conviction signals
-        from push_notification_service import push_service
-        async def _on_strong_signal(notification: dict):
-            """Called by Broadcaster when a signal exceeds 92% conviction.
-            Sends directly to individual registered device tokens (not topic broadcast)
-            to prevent double-notifications for users subscribed to both channels.
-            """
-            await push_service.send_don_decided_alert(notification)
-        broadcaster.set_notification_callback(_on_strong_signal)
-
-        logger.info("✓ Broadcaster daemon started — Underground research active")
+    logger.info("✓ Broadcaster daemon started — Underground research active")
 
     # Rebuild payment tier caches from storage on startup
     # HARDENED: Without this, a restart drops all paying users to 'observer'.
@@ -359,6 +204,12 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Track record boot failed (non-fatal): %s", e)
 
+    # Initialize WebSocket signal distributor for Google Cloud Run
+    try:
+        await init_ws_redis_listener()
+    except Exception as e:
+        logger.warning("WebSocket Redis listener init failed (non-fatal): %s", e)
+
     logger.info("=" * 60)
     logger.info("  MEHD AI — Ready to protect traders")
     logger.info("=" * 60)
@@ -377,9 +228,10 @@ async def lifespan(app: FastAPI):
     await streamer.stop()
     black_swan.stop_daemon()
     
-    # Tear down the isolated Risk Microservice
-    if _risk_task:
-        _risk_task.cancel()
+    # Tear down the isolated Risk Microservice if defined
+    risk_task_ref = globals().get("_risk_task")
+    if risk_task_ref:
+        risk_task_ref.cancel()
 
 
 # ──────────────────────────────────────────────
@@ -432,184 +284,37 @@ app.add_middleware(
     allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Signature", "X-Timestamp", "X-Nonce"],
 )
 
-
-# ── Symbol Injection Guard ──
-# SECURITY: Validates any `symbol` query parameter against VALID_SYMBOLS before
-# the request reaches any route handler. Prevents injection of arbitrary strings
-# into Groq/OANDA API calls, and blocks path traversal / oversized symbol attacks.
-import re as _re
-_SYMBOL_RE = _re.compile(r'^[A-Z0-9]{3,12}$')
+# ── FORTRESS SECURITY HEADERS & THREAT JAIL MIDDLEWARE ──
+from security_guard import threat_jail, get_real_client_ip
 
 @app.middleware("http")
-async def validate_symbol_param(request: Request, call_next):
-    from state import VALID_SYMBOLS
-    raw_symbol = request.query_params.get("symbol")
-    if raw_symbol is not None:
-        clean = raw_symbol.upper().replace("/", "").strip()
-        if not _SYMBOL_RE.match(clean):
-            return __import__('fastapi').responses.JSONResponse(
-                status_code=400,
-                content={"detail": f"Invalid symbol format: '{raw_symbol}'"}
-            )
-        if clean not in VALID_SYMBOLS:
-            return __import__('fastapi').responses.JSONResponse(
-                status_code=400,
-                content={"detail": f"Unsupported symbol: '{clean}'. See /analysis/symbols for valid options."}
-            )
-    return await call_next(request)
+async def fortress_security_middleware(request: Request, call_next):
+    client_ip = get_real_client_ip(request)
 
+    # 1. Threat Jail IP Ban Check
+    if threat_jail.is_ip_banned(client_ip):
+        logger.warning("🚨 FORTRESS DEFENSE: Blocked request from banned IP %s", client_ip)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied by Fortress Threat Defense System."
+        )
 
-# ── Security Headers Middleware ──
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+    # 2. Process Request
     response = await call_next(request)
+
+    # 3. Inject Military-Grade HTTP Security Headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data:; "
-        "connect-src 'self' http://localhost:* http://127.0.0.1:* https://*.firebaseio.com https://*.googleapis.com; "
-        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-    )
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
+
     return response
-
-
-# ── Suspicious Request Fingerprinting Middleware ──
-# asyncio.Lock must be created lazily (after the event loop starts) so we
-# initialise it on first use rather than at module import time.
-_ip_requests: defaultdict = defaultdict(list)
-_banned_ips: dict = {}   # IP -> ban_expires_timestamp
-_ip_lock: asyncio.Lock | None = None
-
-def _get_ip_lock() -> asyncio.Lock:
-    global _ip_lock
-    if _ip_lock is None:
-        _ip_lock = asyncio.Lock()
-    return _ip_lock
-
-@app.middleware("http")
-async def bot_fingerprint_middleware(request: Request, call_next):
-    from auth import get_real_ip
-    client_ip = get_real_ip(request)
-    
-    # Exclude localhost/internal health check loop from bans
-    if client_ip in ("127.0.0.1", "localhost", "::1"):
-        return await call_next(request)
-        
-    now = time.time()
-    
-    async with _get_ip_lock():
-        ban_expires = _banned_ips.get(client_ip, 0)
-        if ban_expires > now:
-            retry_after = int(ban_expires - now)
-            return __import__('fastapi').responses.JSONResponse(
-                status_code=429,
-                content={"detail": "Too many requests. Temporary ban in effect."},
-                headers={"Retry-After": str(retry_after)}
-            )
-        elif ban_expires > 0:
-            del _banned_ips[client_ip]
-            _ip_requests[client_ip] = []
-
-        _ip_requests[client_ip].append(now)
-        _ip_requests[client_ip] = [t for t in _ip_requests[client_ip] if now - t <= 60]
-        
-        if len(_ip_requests[client_ip]) > 50:
-            _banned_ips[client_ip] = now + 900  # 15 minutes
-            logger.warning("SUSPICIOUS_BOT_DETECTED: IP %s sent %d requests in 60s. Banned for 15m.", client_ip, len(_ip_requests[client_ip]))
-            return __import__('fastapi').responses.JSONResponse(
-                status_code=429,
-                content={"detail": "Suspicious request velocity detected. IP banned for 15 minutes."},
-                headers={"Retry-After": "900"}
-            )
-            
-    return await call_next(request)
-
-
-# ── Audit Logging Middleware ──
-@app.middleware("http")
-async def audit_log_middleware(request: Request, call_next):
-    from auth import get_real_ip, get_uid_rate_key
-    
-    client_ip = get_real_ip(request)
-    user_agent = request.headers.get("user-agent", "unknown")
-    
-    user_key = get_uid_rate_key(request)
-    user_id = user_key.replace("uid:", "") if user_key.startswith("uid:") else "guest"
-    
-    start_time_ms = time.time()
-    try:
-        response = await call_next(request)
-        status_code = response.status_code
-        return response
-    except Exception as e:
-        status_code = 500
-        raise e
-    finally:
-        duration_ms = int((time.time() - start_time_ms) * 1000)
-        path = request.url.path
-        level = "HIGH_PRIORITY" if any(x in path for x in ["/auth", "/trading", "/payments", "/admin"]) else "INFO"
-        
-        audit_msg = (
-            f"ip={client_ip} │ user_id={user_id} │ "
-            f"method={request.method} │ path={path} │ status={status_code} │ "
-            f"duration={duration_ms}ms │ ua={user_agent}"
-        )
-        
-        if level == "HIGH_PRIORITY":
-            audit_logger.warning(audit_msg)
-        else:
-            audit_logger.info(audit_msg)
-
-
-# ── Request Body Size Limit ──
-@app.middleware("http")
-async def limit_request_body(request: Request, call_next):
-    """
-    HARDENED (VULN-09): Enforces body size limit by checking BOTH the
-    Content-Length header AND the actual body bytes. The header alone
-    is spoofable — an attacker can claim a small body but send a large one.
-
-    CRITICAL FIX: After reading the body for size validation, we re-inject
-    it via request._receive so downstream handlers (like Stripe webhook
-    signature verification) can read it again. Without this, the body
-    stream is consumed and downstream gets empty bytes.
-    """
-    MAX_BODY_SIZE = 1_048_576  # 1 MB
-
-    # Quick reject via header (fast path)
-    if request.headers.get("content-length"):
-        try:
-            content_length = int(request.headers["content-length"])
-            if content_length > MAX_BODY_SIZE:
-                raise HTTPException(status_code=413, detail="Request body too large")
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
-
-    # For endpoints that consume the body, we also enforce at the byte level.
-    # This catches chunked transfer encoding and spoofed Content-Length headers.
-    # Note: For streaming endpoints (SSE), the body is typically empty so this is safe.
-    if request.method in ("POST", "PUT", "PATCH"):
-        body = await request.body()
-        if len(body) > MAX_BODY_SIZE:
-            raise HTTPException(status_code=413, detail="Request body too large")
-
-        # Re-inject the body so downstream handlers can read it again.
-        # Without this, request.body() returns empty bytes on second call.
-        async def receive():
-            return {"type": "http.request", "body": body}
-        request._receive = receive
-
-    return await call_next(request)
 
 
 # ── Register All Routers ──
@@ -620,6 +325,7 @@ app.include_router(account_router)
 app.include_router(admin_router)
 app.include_router(broadcast_router)
 app.include_router(payments_router)
+app.include_router(ws_router)
 app.include_router(auth_router)
 
 # ── Track Record Stats Endpoint ──
@@ -675,19 +381,18 @@ async def submit_broker_report(
     """
     from datetime import datetime, timezone
 
-    # Input validation
+    from security_guard import sanitize_input_string
     allowed_types = {"WITHDRAWAL_DELAY", "SPREAD_MANIPULATION", "OTHER"}
-    broker_id = body.broker_id.strip().lower()
-    report_type = body.report_type.strip().upper()
+    broker_id = sanitize_input_string(body.broker_id.strip().lower(), max_length=50)
+    report_type = sanitize_input_string(body.report_type.strip().upper(), max_length=50)
+    clean_description = sanitize_input_string(body.description, max_length=500)
 
     if not broker_id or len(broker_id) > 50:
         raise HTTPException(status_code=400, detail="Invalid broker_id.")
     if report_type not in allowed_types:
         raise HTTPException(status_code=400, detail=f"report_type must be one of: {allowed_types}")
-    if not body.description or len(body.description.strip()) < 10:
+    if not clean_description or len(clean_description) < 10:
         raise HTTPException(status_code=400, detail="Description must be at least 10 characters.")
-    if len(body.description) > 500:
-        raise HTTPException(status_code=400, detail="Description must be under 500 characters.")
 
     now = datetime.now(timezone.utc)
     report_key = f"{broker_id}_{uid[:8]}_{now.strftime('%Y%m%d_%H%M%S')}"
@@ -695,7 +400,7 @@ async def submit_broker_report(
         "broker_id":   broker_id,
         "user_id":     uid,
         "report_type": report_type,
-        "description": body.description.strip(),
+        "description": clean_description,
         "timestamp":   now.isoformat(),
         "status":      "PENDING",   # Future: REVIEWED | CONFIRMED | REJECTED
     }

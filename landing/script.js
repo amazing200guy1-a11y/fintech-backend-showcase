@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let mouse = { x: -1000, y: -1000 };
 
     function resizeCanvas() {
-        canvas.width = window.innerWidth;
+        canvas.width = document.documentElement.clientWidth;
         canvas.height = window.innerHeight;
     }
     resizeCanvas();
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.reset(true);
         }
         reset(randomY = false) {
-            this.x = (Math.random() * canvas.width * 1.5) - (canvas.width * 0.25);
+            this.x = Math.random() * canvas.width;
             this.y = randomY ? Math.random() * canvas.height : canvas.height + Math.random() * 100;
             this.size = Math.random() * 4 + 1;
             

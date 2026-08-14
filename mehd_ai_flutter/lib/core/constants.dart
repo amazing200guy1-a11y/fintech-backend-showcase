@@ -8,15 +8,19 @@
 
 class AppConstants {
   // ── NETWORK CONFIGURATION ──────────────────────────────────────────────────
-  // STEP 1 OF CLOUD DEPLOYMENT: Change this one line.
+  // STEP 1 OF CLOUD DEPLOYMENT: Pass the production URL via --dart-define at build time.
   //
-  // LOCAL DEV  (your laptop on WiFi):
-  //   static const String baseUrl = 'http://10.33.159.35:8000';
+  // LOCAL DEV:
+  //   flutter run --dart-define=BACKEND_URL=http://10.33.159.35:8000
   //
   // CLOUD (Railway / Render / GCP — after deployment):
-  //   static const String baseUrl = 'https://YOUR-APP-NAME.up.railway.app';
+  //   flutter build apk --dart-define=BACKEND_URL=https://YOUR-APP-NAME.up.railway.app
   //
-  static const String baseUrl = 'http://10.33.159.35:8000'; // ← CHANGE THIS FOR CLOUD
+  // ⚠️  Never hardcode a local IP here — it will silently fail in production builds.
+  static const String baseUrl = String.fromEnvironment(
+    'BACKEND_URL',
+    defaultValue: 'http://localhost:8000',
+  );
   static const String wsUrl = '$baseUrl/stream'; // Base path for SSE stream endpoints
 
   // Core Major Asset Pairs (Forex, Commodities, Crypto, Indices)

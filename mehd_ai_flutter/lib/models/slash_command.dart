@@ -1,9 +1,10 @@
 class ParsedCommand {
   final bool isValid;
   final String rawCommand;
-  final String action; // long, short, close, help
+  final String action; // long, short, close, help, risk, nuke, bank50, shield, trail
   final String? symbol;
   final int? leverage;
+  final double? value;
   final String? errorMessage;
 
   ParsedCommand({
@@ -12,6 +13,7 @@ class ParsedCommand {
     required this.action,
     this.symbol,
     this.leverage,
+    this.value,
     this.errorMessage,
   });
 

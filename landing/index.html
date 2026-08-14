@@ -12,6 +12,36 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles_v6.css">
+    <style>
+        /* MOBILE STABILITY LOCK — cannot be cached */
+        html, body {
+            overflow-x: hidden !important;
+            max-width: 100vw !important;
+            touch-action: pan-y !important;
+        }
+        * { box-sizing: border-box !important; }
+        #particle-canvas {
+            width: 100vw !important;
+            max-width: 100vw !important;
+            left: 0 !important;
+            right: 0 !important;
+        }
+        @media (max-width: 768px) {
+            .hero__sonar-ring,
+            .hero__bg-logo { display: none !important; }
+            .hero__brand-name {
+                font-size: clamp(22px, 7vw, 34px) !important;
+                letter-spacing: 1px !important;
+            }
+            .hero__title-line {
+                font-size: clamp(16px, 5vw, 24px) !important;
+            }
+            .hero__cta .btn {
+                width: 100% !important;
+                max-width: 280px !important;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- ═══ CANVAS: Particle System ═══ -->
@@ -31,7 +61,6 @@
                 <a href="#features" class="nav__link">Features</a>
                 <a href="#engine" class="nav__link">The Engine</a>
                 <a href="#defense" class="nav__link">Defense System</a>
-                <a href="#agents" class="nav__link">The 11 Agents</a>
                 <a href="#pricing" class="nav__link">Pricing</a>
             </div>
             <div class="nav__actions">
@@ -105,156 +134,7 @@
         </div>
     </section>
 
-    <!-- ═══ SLASH COMMAND TERMINAL ═══ -->
-    <section class="analysis-demo" id="features">
-        <div class="container">
-            <div class="analysis-header">
-                <div class="section-tag animate-in">
-                    <span class="section-tag__dot"></span>
-                    <span class="mono-sm">VIBE TRADING TERMINAL</span>
-                </div>
-                <h2 class="section-title animate-in">No Chatty Bots.<br><span class="accent-text">Just Hardcore Math.</span></h2>
-                <p class="section-subtitle animate-in">Type <span class="mono accent-green">/gold</span>. Instantly receive a perfectly articulated, mathematical consensus generated from 2,000 unique institutional intelligence templates. No fluff. Just the truth.</p>
-            </div>
-            
-            <div class="analysis-visual glass-card animate-in">
-                <div class="terminal__header">
-                    <div class="terminal__dots">
-                        <span class="terminal__dot terminal__dot--red"></span>
-                        <span class="terminal__dot terminal__dot--yellow"></span>
-                        <span class="terminal__dot terminal__dot--green"></span>
-                    </div>
-                    <span class="mono-sm terminal__title">MEHD TERMINAL // VIBE PROTOCOL</span>
-                    <div class="terminal__status">
-                        <span class="terminal__status-dot"></span>
-                        <span class="mono-sm">LIVE</span>
-                    </div>
-                </div>
-                <div class="terminal__body" style="padding: 24px; min-height: 200px; text-align: left;">
-                    <div class="typewriter-line mono-sm" style="color: var(--text-secondary);">root@mehd-ai:~# <span id="typewriter-input" class="accent-green"></span><span class="cursor-blink">_</span></div>
-                    <div id="typewriter-output" class="mono-sm" style="margin-top: 16px; color: var(--text-primary); line-height: 1.6; opacity: 0; transition: opacity 0.3s ease;"></div>
-                </div>
-            </div>
-        </div>
-    </section>
 
-    <!-- ═══ INSTITUTIONAL WAR ROOM ═══ -->
-    <section class="cinema-war-room">
-        <div class="container container--wide">
-            <div class="war-room-app glass-card animate-in">
-                <!-- App Bar -->
-                <div class="war-room-app__header">
-                    <div class="war-room-app__title">
-                        <span class="war-room-app__icon">🛡</span>
-                        <span class="mono-sm" style="letter-spacing: 4px;">INSTITUTIONAL WAR ROOM</span>
-                    </div>
-                    <div class="war-room-app__stats mono-sm">
-                        Den Performance: 0.6s avg | 100.0% accuracy | 0 errors today | Cache: 0% hit
-                    </div>
-                </div>
-
-                <!-- 3 Column Layout -->
-                <div class="war-room-app__body">
-                    <!-- Column 1: Neural Graph -->
-                    <div class="war-room-col war-room-col--left">
-                        <canvas id="neural-canvas"></canvas>
-                        <div class="war-room__neural-center">
-                            <span class="mono-sm neural-label-top">SENTINEL WATCHING</span>
-                            <div class="neural-core">
-                                <span>🏛</span>
-                            </div>
-                            <span class="mono-sm neural-label-bottom">THE DON</span>
-                        </div>
-                    </div>
-
-                    <!-- Column 2: Radar -->
-                    <div class="war-room-col war-room-col--center">
-                        <canvas id="radar-canvas"></canvas>
-                        <div class="war-room__radar-status mono">
-                            AWAITING DATA
-                        </div>
-                    </div>
-
-                    <!-- Column 3: Live Decrypt Stream -->
-                    <div class="war-room-col war-room-col--right">
-                        <div class="decrypt-header">
-                            <span class="mono-sm">LIVE DECRYPT STREAM</span>
-                        </div>
-                        <div class="decrypt-stream mono-sm" id="live-decrypt-text"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-
-    <!-- ═══ THE RISK KERNEL ═══ -->
-    <section class="feature-showcase risk-section">
-        <div class="container">
-            <div class="showcase-grid showcase-grid--reverse">
-                <div class="showcase-content">
-                    <div class="section-tag animate-in">
-                        <span class="section-tag__dot" style="background:var(--red);box-shadow:0 0 8px rgba(var(--red-rgb),0.6)"></span>
-                        <span class="mono-sm">RISK KERNEL</span>
-                    </div>
-                    <h2 class="section-title animate-in">Never Guess Your<br><span class="accent-text" style="color:var(--red);text-shadow:0 0 30px rgba(var(--red-rgb),0.3)">Lot Size Again</span></h2>
-                    <p class="section-subtitle animate-in">The Risk Engine is mathematically designed to prevent blown accounts. It calculates exactly how many lots you should trade to ensure your risk stays at your exact percentage limit.</p>
-                    <ul class="feature-list animate-in">
-                        <li><span class="mono-sm" style="color:var(--red)">✓</span> Automated Position Sizing</li>
-                        <li><span class="mono-sm" style="color:var(--red)">✓</span> Max Daily Drawdown Protection</li>
-                        <li><span class="mono-sm" style="color:var(--red)">✓</span> Hard-Coded Capital Limits</li>
-                    </ul>
-                </div>
-                <div class="showcase-visual glass-card animate-in">
-                    <div class="terminal__header">
-                        <span class="mono-sm terminal__title" style="color:var(--red)">SAGE // RISK KERNEL v3.0</span>
-                    </div>
-                    <div class="risk-calc">
-                        <div class="risk-calc__header mono">RISK.CALC // EUR_USD</div>
-                        <div class="risk-calc__row"><span>Account Balance:</span> <span class="mono accent-blue">$10,450.00</span></div>
-                        <div class="risk-calc__row"><span>Risk Limit:</span> <span class="mono accent-green">1.00% ($104.50)</span></div>
-                        <div class="risk-calc__row"><span>Stop Loss:</span> <span class="mono accent-purple">15 Pips</span></div>
-                        <div class="risk-calc__divider"></div>
-                        <div class="risk-calc__result">
-                            <span class="mono-sm">APPROVED LOT SIZE</span>
-                            <div class="risk-calc__value mono accent-green">0.69 LOTS</div>
-                        </div>
-                        <div class="risk-calc__seal">SEAL VALID // TRADE PROTECTED</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-
-
-    <!-- ═══ LIVE TERMINAL DEMO ═══ -->
-    <section class="terminal-demo" id="engine">
-        <div class="container">
-            <div class="section-tag animate-in">
-                <span class="section-tag__dot"></span>
-                <span class="mono-sm">THE CONSENSUS ENGINE</span>
-            </div>
-            <h2 class="section-title animate-in">Watch The Den In Action</h2>
-            <p class="section-subtitle animate-in">This is what happens inside Mehd AI every time you consider a trade. 11 agents. One verdict. Zero emotion.</p>
-
-            <div class="terminal glass-card animate-in">
-                <div class="terminal__header">
-                    <div class="terminal__dots">
-                        <span class="terminal__dot terminal__dot--red"></span>
-                        <span class="terminal__dot terminal__dot--yellow"></span>
-                        <span class="terminal__dot terminal__dot--green"></span>
-                    </div>
-                    <span class="mono-sm terminal__title">THE DEN // CONSENSUS ENGINE v2.0</span>
-                    <div class="terminal__status">
-                        <span class="terminal__status-dot"></span>
-                        <span class="mono-sm">LIVE</span>
-                    </div>
-                </div>
-                <div class="terminal__body" id="terminal-body"></div>
-            </div>
-        </div>
-    </section>
 
     <!-- ═══ DEFENSE SYSTEM ═══ -->
     <section class="defense" id="defense">
@@ -323,86 +203,7 @@
         </div>
     </section>
 
-    <!-- ═══ THE 11 AGENTS ═══ -->
-    <section class="agents" id="agents">
-        <div class="container">
-            <div class="section-tag animate-in">
-                <span class="section-tag__dot"></span>
-                <span class="mono-sm">THE 11 AGENTS</span>
-            </div>
-            <h2 class="section-title animate-in">Your Personal Intelligence<br><span class="accent-text">Network</span></h2>
-            <p class="section-subtitle animate-in">Each agent has a unique personality, specialization, and geometric identity. Together, they form an unclonable defense architecture.</p>
 
-            <div class="agents__grid">
-                <div class="agent-card glass-card animate-in" data-color="purple">
-                    <div class="agent-card__symbol">◇</div>
-                    <h4 class="mono">PHANTOM</h4>
-                    <span class="agent-card__role">Stealth Recon</span>
-                    <p>Scans hidden market patterns invisible to retail tools</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="blue">
-                    <div class="agent-card__symbol">◈</div>
-                    <h4 class="mono">ORACLE</h4>
-                    <span class="agent-card__role">Pattern Vision</span>
-                    <p>Crystal-clear foresight through advanced pattern recognition</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="gold">
-                    <div class="agent-card__symbol">♛</div>
-                    <h4 class="mono">CAESAR</h4>
-                    <span class="agent-card__role">Command Authority</span>
-                    <p>Strategic discipline and imperial-grade execution logic</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="green">
-                    <div class="agent-card__symbol">◎</div>
-                    <h4 class="mono">SAGE</h4>
-                    <span class="agent-card__role">Risk Wisdom</span>
-                    <p>Ancient wisdom meets modern risk — the voice of caution</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="red">
-                    <div class="agent-card__symbol">♜</div>
-                    <h4 class="mono">DON</h4>
-                    <span class="agent-card__role">Final Word</span>
-                    <p>The boss of The Underworld — no trade moves without his nod</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="blue">
-                    <div class="agent-card__symbol">⬡</div>
-                    <h4 class="mono">TITAN</h4>
-                    <span class="agent-card__role">Backtest Engine</span>
-                    <p>Tests every theory against years of historical war data</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="cyan">
-                    <div class="agent-card__symbol">◬</div>
-                    <h4 class="mono">ATLAS</h4>
-                    <span class="agent-card__role">Quant Analysis</span>
-                    <p>Pure mathematical quantitative analysis — zero emotion</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="gold">
-                    <div class="agent-card__symbol">⚒</div>
-                    <h4 class="mono">FORGE</h4>
-                    <span class="agent-card__role">Math Core</span>
-                    <p>Raw mathematical computation engine — Fibonacci, RSI, MACD</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="cyan">
-                    <div class="agent-card__symbol">⛊</div>
-                    <h4 class="mono">GUARDIAN</h4>
-                    <span class="agent-card__role">Shield Protocol</span>
-                    <p>The last wall of defense — hard-coded capital protection</p>
-                </div>
-                <div class="agent-card glass-card animate-in" data-color="purple">
-                    <div class="agent-card__symbol">◉</div>
-                    <h4 class="mono">SENTINEL</h4>
-                    <span class="agent-card__role">Paradox Detector</span>
-                    <p>Catches contradictions in agent votes — the lie detector</p>
-                </div>
-                <div class="agent-card glass-card animate-in agent-card--supreme" data-color="white">
-                    <div class="agent-card__symbol">★</div>
-                    <h4 class="mono">THE DON</h4>
-                    <span class="agent-card__role">Supreme Override</span>
-                    <p>The supreme intelligence. Overrides all when danger exceeds limits.</p>
-                </div>
-            </div>
-        </div>
-    </section>
 
     <!-- ═══ METRICS BANNER ═══ -->
     <section class="metrics">
@@ -442,29 +243,10 @@
             <p class="section-subtitle animate-in">No cheap tier. No watered-down AI. Every time The Den speaks, all 11 agents hunt for opportunities and vote on risk. You choose how deep to go.</p>
 
             <div class="pricing__grid">
-                <div class="pricing__card glass-card animate-in" id="plan-shadow">
-                    <div class="pricing__header">
-                        <h3 class="mono">SHADOW TIER</h3>
-                        <p>Trust-building & Onboarding</p>
-                    </div>
-                    <div class="pricing__price">
-                        <span class="pricing__amount">Free</span>
-                    </div>
-                    <ul class="pricing__features">
-                        <li><strong>1</strong> Premium Setup per week</li>
-                        <li>Full 11-agent consensus experience</li>
-                        <li>Full War Room visualization</li>
-                        <li>Full confidence breakdown</li>
-                        <li>No autopilot</li>
-                        <li>No broker integration</li>
-                    </ul>
-                    <a href="#access" class="btn btn--glass btn--full">Get Started</a>
-                </div>
-
                 <div class="pricing__card glass-card animate-in" id="plan-core">
                     <div class="pricing__header">
                         <h3 class="mono">CORE TRADER</h3>
-                        <p>Smart AI Trading Assistant</p>
+                        <p>Smart AI Signal Assistant</p>
                     </div>
                     <div class="pricing__price">
                         <span class="pricing__currency">$</span>
@@ -472,11 +254,13 @@
                         <span class="pricing__period">/mo</span>
                     </div>
                     <ul class="pricing__features">
-                        <li><strong>10</strong> Premium Setups per day</li>
-                        <li>Full agent network active</li>
-                        <li>Broker Shield access</li>
-                        <li>Full signal breakdown</li>
-                        <li>Partial autopilot — <strong>3</strong> auto-trades/day</li>
+                        <li><strong>10 Major Assets Scanned</strong> (Forex, Gold, Crypto, Indices)</li>
+                        <li><strong>1-Tap Mobile Approve</strong> (Self-Directed)</li>
+                        <li>Full 11-Agent Swarm Consensus</li>
+                        <li>30-Min High Impact News Blackout Filter</li>
+                        <li>Automated Position Size Calculator</li>
+                        <li><strong>1 Connected Broker Account</strong></li>
+                        <li style="opacity: 0.4;">❌ No 24/5 Hands-Free Autopilot</li>
                     </ul>
                     <a href="#access" class="btn btn--glass btn--full">Start 3-Day Free Trial</a>
                     <p style="text-align: center; font-size: 0.7em; color: var(--text-dim); margin-top: 12px; margin-bottom: 0;">Billed $79 after 72 hours.</p>
@@ -485,7 +269,7 @@
                 <div class="pricing__card glass-card animate-in" id="plan-precision">
                     <div class="pricing__header">
                         <h3 class="mono">PRECISION TRADER</h3>
-                        <p>Professional Trader Workstation</p>
+                        <p>Multi-Account Trader Workstation</p>
                     </div>
                     <div class="pricing__price">
                         <span class="pricing__currency">$</span>
@@ -493,21 +277,23 @@
                         <span class="pricing__period">/mo</span>
                     </div>
                     <ul class="pricing__features">
-                        <li><strong>50</strong> Premium Setups per day</li>
-                        <li>Full agent network active</li>
-                        <li>Broker Shield + ECN verification</li>
-                        <li>Advanced signal filtering</li>
-                        <li>Partial autopilot — <strong>15</strong> auto-trades/day</li>
+                        <li><strong>10 Major Assets Scanned</strong> (Forex, Gold, Crypto, Indices)</li>
+                        <li><strong>1-Tap Mobile Approve + Auto-Trailing SL</strong></li>
+                        <li>Full 11-Agent Swarm Consensus</li>
+                        <li>45-Min News Blackout & Volatility Filter</li>
+                        <li>ECN Slippage & Spread Warning System</li>
+                        <li><strong>Up to 3 Connected Accounts</strong> (Prop Firm + Personal)</li>
+                        <li style="opacity: 0.4;">❌ No 24/5 Hands-Free Autopilot</li>
                     </ul>
                     <a href="#access" class="btn btn--glass btn--full">Start 3-Day Free Trial</a>
                     <p style="text-align: center; font-size: 0.7em; color: var(--text-dim); margin-top: 12px; margin-bottom: 0;">Billed $149 after 72 hours.</p>
                 </div>
 
                 <div class="pricing__card pricing__card--featured glass-card animate-in" id="plan-institutional">
-                    <div class="pricing__badge mono-sm">SUPREME</div>
+                    <div class="pricing__badge mono-sm">SUPREME // FULL AUTO</div>
                     <div class="pricing__header">
                         <h3 class="mono">INSTITUTIONAL</h3>
-                        <p>Full Execution Operating System</p>
+                        <p>Full Autonomous Execution Engine</p>
                     </div>
                     <div class="pricing__price">
                         <span class="pricing__currency">$</span>
@@ -515,12 +301,12 @@
                         <span class="pricing__period">/mo</span>
                     </div>
                     <ul class="pricing__features">
-                        <li><strong>Unlimited</strong> Premium Setups</li>
-                        <li><strong>Full Unlimited Autopilot</strong></li>
-                        <li>Priority signal delivery</li>
-                        <li>Full Broker Shield + API direct</li>
-                        <li>All 11 agents unrestricted</li>
-                        <li>Institutional audit access</li>
+                        <li><strong>10 Major Assets Scanned 24/7</strong></li>
+                        <li><strong>FULL 24/5 HANDS-FREE AUTONOMOUS ENGINE</strong> (0 Taps — Trades while you sleep)</li>
+                        <li>Full 11-Agent Sovereign Swarm + Data Moat (10,000 Monte Carlo Simulations)</li>
+                        <li>60-Min Hardened News Blackout & Black Swan Kill Switch</li>
+                        <li><strong>BROKER SHIELD PRO</strong> (Anti-Slippage & Anti-Fraud Scanner)</li>
+                        <li><strong>UNLIMITED Connected Accounts</strong> (Prop Firm Master Setup)</li>
                     </ul>
                     <a href="#access" class="btn btn--glow btn--full">
                         <span class="btn__shimmer"></span>

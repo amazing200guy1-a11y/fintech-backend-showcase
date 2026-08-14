@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mehd_ai_flutter/core/theme.dart';
 
 class WarRoomCommunityScreen extends StatefulWidget {
-  const WarRoomCommunityScreen({super.key});
+  final bool showBack;
+  const WarRoomCommunityScreen({super.key, this.showBack = false});
 
   @override
   State<WarRoomCommunityScreen> createState() => _WarRoomCommunityScreenState();
@@ -14,17 +16,57 @@ class _WarRoomCommunityScreenState extends State<WarRoomCommunityScreen> {
   final ScrollController _chatScroll = ScrollController();
   final List<Map<String, dynamic>> _chatFeed = [];
   Timer? _feedTimer;
+  StreamSubscription<QuerySnapshot>? _firestoreSub;
   final Random _rand = Random();
 
   @override
   void initState() {
     super.initState();
-    // Pre-populate some feed history
+    // 1. Pre-populate initial feed history
     for (int i = 0; i < 15; i++) {
       _addFeedItem();
     }
-    // Simulate live institutional network data
+
+    // 2. Stream live Firestore community signals if available
+    try {
+      _firestoreSub = FirebaseFirestore.instance
+          .collection('community_feed')
+          .orderBy('timestamp', descending: true)
+          .limit(30)
+          .snapshots()
+          .listen((snapshot) {
+        if (!mounted || snapshot.docs.isEmpty) return;
+        setState(() {
+          for (var doc in snapshot.docs.reversed) {
+            final data = doc.data();
+            final user = data['user'] ?? data['trader'] ?? 'QuantNode';
+            final pair = data['pair'] ?? data['symbol'] ?? 'EUR/USD';
+            final direction = data['direction'] ?? 'BUY';
+            final alignment = (data['alignment'] ?? 92).toInt();
+            final ts = data['time'] ?? '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}';
+            
+            _chatFeed.add({
+              'time': ts,
+              'user': user,
+              'pair': pair,
+              'direction': direction,
+              'alignment': alignment,
+            });
+          }
+          if (_chatFeed.length > 60) {
+            _chatFeed.removeRange(0, _chatFeed.length - 60);
+          }
+        });
+      }, onError: (e) {
+        debugPrint("CommunityScreen: Firestore error (using seed fallback): $e");
+      });
+    } catch (e) {
+      debugPrint("CommunityScreen: Firestore init error: $e");
+    }
+
+    // 3. Fallback simulation timer when offline/before live events
     _feedTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted) return;
       setState(() {
         _addFeedItem();
         if (_chatFeed.length > 50) _chatFeed.removeAt(0);
@@ -58,6 +100,7 @@ class _WarRoomCommunityScreenState extends State<WarRoomCommunityScreen> {
   @override
   void dispose() {
     _feedTimer?.cancel();
+    _firestoreSub?.cancel();
     _chatScroll.dispose();
     super.dispose();
   }
@@ -67,7 +110,15 @@ class _WarRoomCommunityScreenState extends State<WarRoomCommunityScreen> {
     return Scaffold(
       backgroundColor: MehdAiTheme.bgPrimary,
       appBar: AppBar(
-        title: Text('WAR ROOM NETWORK', style: MehdAiTheme.headingStyle.copyWith(letterSpacing: 2)),
+        automaticallyImplyLeading: false,
+        leading: widget.showBack
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: MehdAiTheme.textPrimary, size: 18),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
+
+        title: Text('SOVEREIGN COMMUNITY', style: MehdAiTheme.headingStyle.copyWith(letterSpacing: 2)),
         backgroundColor: MehdAiTheme.bgSecondary,
         iconTheme: const IconThemeData(color: MehdAiTheme.textPrimary),
         centerTitle: true,

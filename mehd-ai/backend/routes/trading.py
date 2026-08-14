@@ -146,10 +146,10 @@ async def execute_trade(
         #         A tampered request with lot_size=100 or risk_percentage=1.0
         #         (100% of balance) could blow up the account.
         # AFTER:  The server IGNORES the client's lot_size entirely.
-        #         risk_percentage is clamped to a hard server-side maximum of
-        #         1% (0.01) regardless of what the client claims. The true lot
-        #         size is calculated by the Risk Kernel from the account balance.
-        SERVER_MAX_RISK_PCT = 0.10   # Hard ceiling: matches the 10% max on the Risk Slider (kernel enforces per-trade safety)
+        # risk_percentage is stored as a PERCENTAGE (1.0 = 1%, 10.0 = 10%).
+        # The slider on the app goes from 0.1% to 10.0%.
+        # The server clamps to 10.0 (the slider max) as a hard ceiling.
+        SERVER_MAX_RISK_PCT = 10.0   # Hard ceiling: matches the 10% max on the Risk Slider
         server_risk_pct = min(order.risk_percentage, SERVER_MAX_RISK_PCT)
 
         # Client lot_size is completely ignored — Risk Kernel calculates it

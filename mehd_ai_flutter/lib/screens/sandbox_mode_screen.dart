@@ -7,12 +7,12 @@ import 'package:mehd_ai_flutter/widgets/mehd_mascot.dart';
 import 'package:mehd_ai_flutter/widgets/techno_card.dart';
 import 'package:mehd_ai_flutter/services/settings_service.dart';
 import 'package:mehd_ai_flutter/controllers/trading_controller.dart';
-import 'dart:ui';
 
 /// Digital Twin Sandbox Mode Screen
 /// Forward-testing laboratory for simulated paper trades and Certified Alpha badge qualification.
 class SandboxModeScreen extends StatefulWidget {
-  const SandboxModeScreen({super.key});
+  final bool showBack;
+  const SandboxModeScreen({super.key, this.showBack = false});
 
   @override
   State<SandboxModeScreen> createState() => _SandboxModeScreenState();
@@ -76,18 +76,36 @@ class _SandboxModeScreenState extends State<SandboxModeScreen> with TickerProvid
           .doc('sandbox_telemetry')
           .snapshots(),
       builder: (context, snapshot) {
-        Map<String, dynamic> telemetry = Map<String, dynamic>.from(_kSeedTelemetry);
+    Map<String, dynamic> telemetry;
         if (snapshot.hasData && snapshot.data!.exists) {
-          final live = snapshot.data!.data() as Map<String, dynamic>?;
-          if (live != null && live.isNotEmpty) {
-            telemetry = {..._kSeedTelemetry, ...live};
-          }
+          // Firestore document exists — use ONLY live data, default missing numeric fields to 0
+          // (Never show seed values when real data is connected)
+          final live = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+          telemetry = {
+            'simulation_hours_elapsed': live['simulation_hours_elapsed'] ?? 0,
+            'total_simulation_hours': live['total_simulation_hours'] ?? 48,
+            'simulated_win_rate': live['simulated_win_rate'] ?? 0.0,
+            'simulated_pnl_usd': live['simulated_pnl_usd'] ?? 0.0,
+            'market_outperformance_pct': live['market_outperformance_pct'] ?? 0.0,
+            'certified_alpha_qualified': live['certified_alpha_qualified'] ?? false,
+            'active_simulations': live['active_simulations'] ?? 0,
+          };
+        } else {
+          // No Firestore doc yet — use seed data so UI isn't empty on first launch
+          telemetry = Map<String, dynamic>.from(_kSeedTelemetry);
         }
 
         return Scaffold(
           backgroundColor: MehdAiTheme.bgPrimary,
           appBar: AppBar(
             automaticallyImplyLeading: false,
+            leading: widget.showBack
+                ? IconButton(
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+                    onPressed: () => Navigator.pop(context),
+                  )
+                : null,
+
             backgroundColor: MehdAiTheme.bgSecondary,
             elevation: 0,
             title: Column(
@@ -308,12 +326,12 @@ class _SandboxModeScreenState extends State<SandboxModeScreen> with TickerProvid
   }
 
   Widget _buildTelemetryDashboard(Map<String, dynamic> data) {
-    final hoursElapsed = (data['simulation_hours_elapsed'] as num?)?.toInt() ?? 31;
+    final hoursElapsed = (data['simulation_hours_elapsed'] as num?)?.toInt() ?? 0;
     final totalHours = (data['total_simulation_hours'] as num?)?.toInt() ?? 48;
-    final progress = (hoursElapsed / totalHours).clamp(0.0, 1.0);
-    final winRate = (data['simulated_win_rate'] as num?)?.toDouble() ?? 78.4;
-    final pnl = (data['simulated_pnl_usd'] as num?)?.toDouble() ?? 1280.50;
-    final alpha = (data['market_outperformance_pct'] as num?)?.toDouble() ?? 12.4;
+    final progress = totalHours > 0 ? (hoursElapsed / totalHours).clamp(0.0, 1.0) : 0.0;
+    final winRate = (data['simulated_win_rate'] as num?)?.toDouble() ?? 0.0;
+    final pnl = (data['simulated_pnl_usd'] as num?)?.toDouble() ?? 0.0;
+    final alpha = (data['market_outperformance_pct'] as num?)?.toDouble() ?? 0.0;
     final isQualified = alpha >= 10.0;
 
     return Column(

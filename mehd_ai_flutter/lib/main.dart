@@ -21,6 +21,11 @@ import 'package:mehd_ai_flutter/controllers/trading_controller.dart';
 import 'package:mehd_ai_flutter/controllers/market_data_controller.dart';
 import 'package:mehd_ai_flutter/services/payment_service.dart';
 import 'package:mehd_ai_flutter/services/broker_service.dart';
+import 'package:mehd_ai_flutter/services/biometric_security_service.dart';
+import 'package:mehd_ai_flutter/services/security_alert_service.dart';
+import 'package:mehd_ai_flutter/services/anti_phishing_service.dart';
+import 'package:mehd_ai_flutter/screens/pin_lock_screen.dart';
+
 import 'package:mehd_ai_flutter/services/nlg_engine.dart';
 import 'package:mehd_ai_flutter/widgets/inactivity_guard.dart';
 import 'package:mehd_ai_flutter/core/api_service.dart';
@@ -198,6 +203,9 @@ class MehdAiApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SettingsService()..load(), lazy: false),
         ChangeNotifierProvider(create: (_) => PaymentService(), lazy: false),
         ChangeNotifierProvider(create: (_) => BrokerService()..init(), lazy: false),
+        ChangeNotifierProvider(create: (_) => BiometricSecurityService(), lazy: false),
+        ChangeNotifierProvider(create: (_) => SecurityAlertService(), lazy: false),
+        ChangeNotifierProvider(create: (_) => AntiPhishingService(), lazy: false),
       ],
       child: Consumer2<LanguageService, ThemeProvider>(
         builder: (context, languageOpts, themeProvider, child) {
@@ -229,12 +237,25 @@ class MehdAiApp extends StatelessWidget {
               if (child == null) return const SizedBox.shrink();
               // RTL support for Arabic
               final isRtl = languageOpts.currentLocale.languageCode == 'ar';
-              return InactivityGuard(
-                timeoutDuration: const Duration(minutes: 15),
-                child: Directionality(
-                  textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-                  child: child,
-                ),
+              return Consumer<BiometricSecurityService>(
+                builder: (context, security, _) {
+                  final mainAppWidget = InactivityGuard(
+                    timeoutDuration: const Duration(minutes: 5),
+                    child: Directionality(
+                      textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+                      child: child,
+                    ),
+                  );
+                  if (security.isLocked) {
+                    return Stack(
+                      children: [
+                        mainAppWidget,
+                        const PinLockScreen(),
+                      ],
+                    );
+                  }
+                  return mainAppWidget;
+                },
               );
             },
             home: const SplashScreen(),

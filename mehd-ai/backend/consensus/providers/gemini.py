@@ -16,8 +16,11 @@ async def _call_gemini(symbol: str, snapshot: MarketSnapshot, client: httpx.Asyn
     resp = await client.post(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-        json={"contents": [{"parts": [{"text": sys_prompt + "\n\n" + msg}]}]}
+        json={
+            "systemInstruction": {"parts": [{"text": sys_prompt}]},
+            "contents": [{"parts": [{"text": msg}]}]
+        }
     )
     resp.raise_for_status()
     text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    return _parse_llm_json(text, "gemini", snapshot.id)
+    return _parse_llm_json(text, "gemini-2.0-flash", snapshot.id)

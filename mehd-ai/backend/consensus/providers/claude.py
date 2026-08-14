@@ -20,7 +20,7 @@ async def _call_claude(symbol: str, snapshot: MarketSnapshot, client: httpx.Asyn
             "anthropic-version": "2023-06-01"
         },
         json={
-            "model": "claude-3-opus-20240229",
+            "model": "claude-3-5-sonnet-20240620",
             "max_tokens": 300,
             "system": sys_prompt,
             "messages": [{"role": "user", "content": msg}],
@@ -29,4 +29,4 @@ async def _call_claude(symbol: str, snapshot: MarketSnapshot, client: httpx.Asyn
     )
     resp.raise_for_status()
     text = resp.json()["content"][0]["text"]
-    return _parse_llm_json(text, "claude", snapshot.id)
+    return _parse_llm_json(text, "claude-3-5-sonnet-20240620", snapshot.id)
