@@ -1,0 +1,51 @@
+﻿# GitHub Linguist Multi-Language Portfolio Configuration
+
+# ── DART / FLUTTER FRONTEND ──
+*.dart linguist-detectable=true linguist-language=Dart
+mehd_ai_flutter/lib/** linguist-detectable=true linguist-language=Dart
+
+# ── RUST QUANT ORDER ROUTER & SIMD MATCHING ENGINE ──
+*.rs linguist-detectable=true linguist-language=Rust
+rust_order_router/** linguist-detectable=true linguist-language=Rust
+
+# ── C++ HIGH-PERFORMANCE LOW-LATENCY QUANT KERNEL ──
+*.cpp linguist-detectable=true linguist-language=C++
+*.hpp linguist-detectable=true linguist-language=C++
+*.h linguist-detectable=true linguist-language=C++
+cpp_quant_engine/** linguist-detectable=true linguist-language=C++
+mehd_ai_flutter/windows/runner/** linguist-detectable=true linguist-language=C++
+
+# ── JAVA INSTITUTIONAL FIX PROTOCOL ADAPTER ──
+*.java linguist-detectable=true linguist-language=Java
+java_fix_adapter/** linguist-detectable=true linguist-language=Java
+
+# ── TYPESCRIPT / JAVASCRIPT FULL-STACK QUANT SDK ──
+*.ts linguist-detectable=true linguist-language=TypeScript
+*.tsx linguist-detectable=true linguist-language=TypeScript
+typescript_sdk/** linguist-detectable=true linguist-language=TypeScript
+
+# ── PYTHON BACKEND & 11-AGENT AI SWARM ──
+*.py linguist-detectable=true linguist-language=Python
+mehd-ai/backend/** linguist-detectable=true linguist-language=Python
+
+# ── DEVOPS & INFRASTRUCTURE AUTOMATION ──
+*.sh linguist-detectable=true linguist-language=Shell
+*.ps1 linguist-detectable=true linguist-language=PowerShell
+*.yml linguist-detectable=true linguist-language=YAML
+*.yaml linguist-detectable=true linguist-language=YAML
+
+# ── VENDOR / IGNORE GENERATED ASSETS & JSON DUMPS ──
+*.json linguist-generated=true
+*.txt linguist-generated=true
+*.lock linguist-generated=true
+*.min.js linguist-generated=true
+build/** linguist-vendored=true
+.dart_tool/** linguist-vendored=true
+venv/** linguist-vendored=true
+**/venv/** linguist-vendored=true
+mehd_ai_flutter/build/** linguist-vendored=true
+mehd_ai_flutter/ephemeral/** linguist-vendored=true
+target/** linguist-vendored=true
+**/target/** linguist-vendored=true
+node_modules/** linguist-vendored=true
+**/node_modules/** linguist-vendored=true

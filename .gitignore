@@ -16,18 +16,22 @@ out.txt
 output.txt
 *.log
 
-# Python caches
+# Python Virtualenvs & caches
 __pycache__/
 *.pyc
 *.pyo
+venv/
+**/venv/
+.venv/
+**/.venv/
 
-# Old backup files
-old_home.dart
-old_*.dart
-
-# Build
+# Build & Native Artifacts
 build/
+**/build/
 .dart_tool/
+**/CMakeScripts/
+*.cmake
+CMakeCache.txt
 
 # Flutter web node_modules and node scripts
 node_modules/

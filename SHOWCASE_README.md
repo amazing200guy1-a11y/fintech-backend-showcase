@@ -1,16 +1,28 @@
 # 🏛️ MEHD AI — Institutional Quantitative Trading System
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)
+![C++](https://img.shields.io/badge/C++-20-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)
+![Java](https://img.shields.io/badge/Java-17+-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)
-![Firebase](https://img.shields.io/badge/Firebase-Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
+![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Security](https://img.shields.io/badge/Security-Fortress--Hardened-red?style=for-the-badge&logo=shields)
-![Architecture](https://img.shields.io/badge/Architecture-Asynchronous_Microservices-blue?style=for-the-badge)
 
 **MEHD AI** is an enterprise-grade, multi-agent quantitative trading platform designed to protect trader capital across Forex, Commodities, Crypto, and Equity Indices. It features an 11-agent AI voting consensus engine, real-time news blackout filters, sub-millisecond execution guards, and automated B-Book broker fraud auditing.
 
-> **Note**: Core proprietary execution algorithms, model weights, and production keys are maintained in a private repository. This repository serves as an architectural showcase of system design, security patterns, and engineering implementations.
+> **Note**: Core proprietary execution algorithms, model weights, and production keys are maintained in a private repository. This repository serves as an architectural showcase of multi-language system design, high-performance quant algorithms, and enterprise security patterns.
+
+---
+
+### 🌐 Polyglot Architecture & Language Matrix
+| Layer | Language / Stack | Purpose |
+|---|---|---|
+| **Quant Core & Risk Kernel** | `C++20` / `Rust` | Sub-microsecond lot sizing, FOK execution, SIMD ATR volatility & lock-free order routing |
+| **Institutional FIX Adapter** | `Java 17` (QuickFIX/J) | Low-latency FIX 4.4 protocol bridge for Tier-1 Liquidity Providers |
+| **Neural Swarm & Backend Daemons** | `Python 3.11` (FastAPI / AsyncIO) | 11-Agent AI Swarm consensus, macroeconomic news filters, and SSE telemetry streamer |
+| **Trading Terminal & Web Cockpit** | `Dart` / `Flutter 3` | Real-time telemetry grids, responsive mobile/desktop UI, and Sentinel risk guardians |
+| **Developer SDK & Event Stream** | `TypeScript 5` (Node/Browser) | Cryptographic request signer, WebSocket pub/sub stream, and typed data bindings |
 
 ---
 
