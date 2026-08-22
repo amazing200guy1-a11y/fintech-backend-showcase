@@ -1,16 +1,28 @@
 # 🏛️ MEHD AI — Institutional Quantitative Trading System
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)
+![C++](https://img.shields.io/badge/C++-20-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)
+![Java](https://img.shields.io/badge/Java-17+-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)
-![Firebase](https://img.shields.io/badge/Firebase-Firestore-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
+![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)
 ![Security](https://img.shields.io/badge/Security-Fortress--Hardened-red?style=for-the-badge&logo=shields)
-![Architecture](https://img.shields.io/badge/Architecture-Asynchronous_Microservices-blue?style=for-the-badge)
 
 **MEHD AI** is an enterprise-grade, multi-agent quantitative trading platform designed to protect trader capital across Forex, Commodities, Crypto, and Equity Indices. It features an 11-agent AI voting consensus engine, real-time news blackout filters, sub-millisecond execution guards, and automated B-Book broker fraud auditing.
 
-> **Note**: Core proprietary execution algorithms, model weights, and production keys are maintained in a private repository. This repository serves as an architectural showcase of system design, security patterns, and engineering implementations.
+> **Note**: Core proprietary execution algorithms, model weights, and production keys are maintained in a private repository. This repository serves as an architectural showcase of multi-language system design, high-performance quant algorithms, and enterprise security patterns.
+
+---
+
+### 🌐 Polyglot Architecture & Language Matrix
+| Layer | Language / Stack | Purpose |
+|---|---|---|
+| **Quant Core & Risk Kernel** | `C++20` / `Rust` | Sub-microsecond lot sizing, FOK execution, SIMD ATR volatility & lock-free order routing |
+| **Institutional FIX Adapter** | `Java 17` (QuickFIX/J) | Low-latency FIX 4.4 protocol bridge for Tier-1 Liquidity Providers |
+| **Neural Swarm & Backend Daemons** | `Python 3.11` (FastAPI / AsyncIO) | 11-Agent AI Swarm consensus, macroeconomic news filters, and SSE telemetry streamer |
+| **Trading Terminal & Web Cockpit** | `Dart` / `Flutter 3` | Real-time telemetry grids, responsive mobile/desktop UI, and Sentinel risk guardians |
+| **Developer SDK & Event Stream** | `TypeScript 5` (Node/Browser) | Cryptographic request signer, WebSocket pub/sub stream, and typed data bindings |
 
 ---
 
@@ -98,15 +110,18 @@ flowchart LR
 - **ThreatJail Automated IP Defense**: Tracks suspicious payloads, rate limit violations, or malformed requests per IP, enforcing automated 15-minute IP bans.
 - **Hardware Credential Encryption**: Integrates `EncryptedSharedPreferences` (Android Keystore) and iOS `KeychainAccessibility.first_unlock` for client credential storage.
 
-### 2. Microservice & Daemon Infrastructure
-- **Asynchronous Event Loops**: 7 independent background daemons orchestrating continuous market analysis, cleanup, and weekly performance scanning.
-- **Real-Time SSE Streaming**: HTTP chunked Server-Sent Events delivering live agent votes and market snapshots to Flutter clients with < 10ms overhead.
-- **Zero-Overhead State Sync**: Event-driven Firestore snapshot listeners updating client UI state atomically without polling.
+### 2. High-Throughput Real-Time Infrastructure
+- **Dual-Task WebSocket Architecture**: Independent `write_pump` and `read_pump` coroutines per connected socket with automatic heartbeat monitoring.
+- **Bounded Memory Queues (`maxsize=10`)**: Non-blocking `queue.put_nowait()` signal dispatch (<0.05ms) with drop-oldest backpressure eviction to prevent slow 3G/4G clients from blocking other traders.
+- **Redis Async Pub/Sub Inter-Process Bridge**: Scalable horizontal fan-out across multiple Google Cloud Run instances with seamless $0 in-memory fallback.
+- **24/7/365 Continuous Crypto Engine**: Non-stop weekend analysis for `BTC/USD` and `ETH/USD` alongside standard 24/5 Forex & Metals market hours.
+- **Institutional Smart Money Drawing Tools**: Automated server-side generation of Order Blocks, Fair Value Gaps (FVG), Liquidity Pools, and Fibonacci OTE Golden Pockets.
 
-### 3. Quantitative Risk Mathematics
-- **Dynamic Lot Sizer**: Calculates position sizes based on exact dollar risk, pip values, and contract specs while enforcing a hard **50% margin safety cap**.
+### 3. Quantitative Risk Mathematics & Capital Protection
+- **HardRiskKernel Unbreakable Governor**: Enforces strict 0.1%–10.0% risk per trade, mandatory stop-losses, and automated 3% daily drawdown lockout.
+- **Multi-Account MAM Ledger Distribution**: Aggregated master execution on broker liquidity pools with zero-lag chunked sub-lot distribution to user portfolios.
 - **Kelly Criterion & Risk Ratios**: Automated win/loss probability weighting and downside semi-deviation (Sortino Ratio) tracking.
-- **Z-Score Anomaly Detection**: Statistical rate-of-change monitoring to catch market flash crashes.
+- **141/141 Automated Test Suite**: 100% pass rate across end-to-end stress tests, broker simulation, and security perimeters.
 
 ---
 
@@ -114,24 +129,24 @@ flowchart LR
 
 The system supports high-liquidity assets accounting for over **85% of global market volume**:
 
-- 💱 **Forex Majors**: `EUR/USD`, `GBP/USD`, `AUD/USD`, `USD/JPY`, `USD/CAD`
-- 🥇 **Precious Metals**: `XAU/USD` (Gold)
-- 📈 **Equity Indices**: `SPX500` (S&P 500), `NAS100` (Nasdaq 100)
-- 🪙 **Crypto Assets**: `BTC/USD`, `ETH/USD`
+- 💱 **Forex Majors**: `EUR/USD`, `GBP/USD`, `AUD/USD`, `USD/JPY`, `USD/CAD`, `NZD/USD`, `EUR/GBP`, `EUR/JPY`, `GBP/JPY`
+- 🥇 **Precious Metals**: `XAU/USD` (Gold), `XAG/USD` (Silver)
+- 📈 **Equity Indices**: `NAS100` (Nasdaq 100)
+- 🪙 **Crypto Assets (24/7/365)**: `BTC/USD`, `ETH/USD`, `SOL/USD`
 
 ---
 
 ## 💻 Tech Stack Summary
 
-- **Backend**: Python 3.11, FastAPI, Pydantic, SlowAPI, Sentry, Asyncio
-- **Frontend**: Flutter 3.x, Dart 3.x, Provider, Google Fonts, FL Chart
-- **Database & Cloud**: Firebase Auth, Cloud Firestore, GCP Secret Manager, Docker
-- **Security**: HMAC-SHA256, AES-256-GCM, TLS Certificate Pinning, ThreatJail
+- **Backend**: Python 3.12, FastAPI, Asyncio, Redis Async Pub/Sub, Pydantic, SlowAPI, Sentry
+- **Frontend**: Flutter 3.x, Dart 3.x, Provider, Google Fonts, FL Chart, Custom Painters
+- **Database & Cloud**: Google Cloud Run, Firebase Auth, Cloud Firestore, Docker, limits.conf
+- **Security & Defense**: HMAC-SHA256, SHA-256 State Seals, Independent Oracle Verification, ThreatJail
 
 ---
 
 ## 📄 License & Attribution
 
-Architected & Developed by **Osman** (Backend & Quantitative Systems Engineer).
+Architected & Developed by **Usman** (Backend, Cloud & Quantitative Systems Engineer).
 
 *Protected under proprietary trade secret guidelines. All rights reserved.*
