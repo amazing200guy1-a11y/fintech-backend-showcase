@@ -11,7 +11,7 @@
 
 **MEHD AI** is an enterprise-grade, multi-agent quantitative trading platform designed to protect trader capital across Forex, Commodities, Crypto, and Equity Indices. It features an 11-agent AI voting consensus engine, real-time news blackout filters, sub-millisecond execution guards, and automated B-Book broker fraud auditing.
 
-> **Note**: Core proprietary execution algorithms, model weights, and production keys are maintained in a private repository. This repository serves as an architectural showcase of multi-language system design, high-performance quant algorithms, and enterprise security patterns.
+> **Note**: Core proprietary execution algorithms, model weights, and production keys are maintained in a private repository for the sake of professionalism and legal actions. This repository serves as an architectural showcase of multi-language system design, high-performance quant algorithms, and enterprise security patterns.
 
 ---
 
