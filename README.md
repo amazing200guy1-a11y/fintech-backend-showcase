@@ -4,7 +4,14 @@
   <img src="IMG-20260625-WA0022.jpg" alt="micro1 Certified Technical Talent" width="600"/>
 </p>
 
-> **🔒 TALENT ACCREDITATION FLAG:** Officially vetted and awarded an **Outstanding Performance Rating** during the rigorous micro1 AI Technical Screening & Event Architecture Evaluation framework.
+## 🎖️ Global AI & Technical Accreditations
+
+* **micro1 AI Technical Certification** — Vetted and awarded an **Outstanding Performance Rating** during the rigorous micro1 automated technical assessment and systems architecture screening framework (June 2026).
+  * Verification Asset: Refer to IMG-20260625-WA0022.jpg rendering in the root repository branch.
+* **Mercor AI Academy Recognition** — Formally certified in AI Agent Evaluation, Rigorous System Calibration, and Multi-Agent Architectural Rigor signed by the Chief Executive Officer (September 2026).
+  * Live Verification Link: https://mercor.com
+
+---
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)
 ![C++](https://img.shields.io/badge/C++-20-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)
