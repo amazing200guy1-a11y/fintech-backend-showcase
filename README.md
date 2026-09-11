@@ -1,5 +1,10 @@
 # 🏛️ MEHD AI — Institutional Quantitative Trading System
 
+<p align="center">
+  <img src="IMG-20260625-WA0022.jpg" alt="micro1 Certified Technical Talent" width="600"/>
+</p>
+
+> **🔒 TALENT ACCREDITATION FLAG:** Officially vetted and awarded an **Outstanding Performance Rating** during the rigorous micro1 AI Technical Screening & Event Architecture Evaluation framework.
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-2021-DEA584?style=for-the-badge&logo=rust&logoColor=white)
 ![C++](https://img.shields.io/badge/C++-20-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)
