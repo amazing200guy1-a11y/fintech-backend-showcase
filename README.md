@@ -1,15 +1,18 @@
 # 🏛️ MEHD AI — Institutional Quantitative Trading System
 
 <p align="center">
-  <img src="IMG-20260625-WA0022.jpg" alt="micro1 Certified Technical Talent" width="600"/>
+  <img src="IMG-20260625-WA0022.jpg" alt="micro1 Certified Technical Talent" width="47%"/>
+  <img src="mercor-certificate-MRC-2026-UGC48QYY.png" alt="Mercor Certified AI Talent" width="47%"/>
 </p>
 
 ## 🎖️ Global AI & Technical Accreditations
 
-* **micro1 AI Technical Certification** — Vetted and awarded an **Outstanding Performance Rating** during the rigorous micro1 automated technical assessment and systems architecture screening framework (June 2026).
-  * Verification Asset: Refer to IMG-20260625-WA0022.jpg rendering in the root repository branch.
-* **Mercor AI Academy Recognition** — Formally certified in AI Agent Evaluation, Rigorous System Calibration, and Multi-Agent Architectural Rigor signed by the Chief Executive Officer (September 2026).
-  * Live Verification Link: https://mercor.com
+* **micro1 AI Technical Certification** — Vetted and awarded an **Outstanding Performance Rating** during the automated technical assessment and systems architecture screening framework (June 2026).
+  * *Verification Asset:* See `IMG-20260625-WA0022.jpg` loaded in the root branch.
+* **Mercor AI Academy Recognition** — Formally certified in **AI Agent Evaluation, Rigorous System Calibration, and Multi-Agent Architectural Rigor** signed by the Chief Executive Officer (September 2026).
+  * *Verification Asset:* See `mercor-certificate-MRC-2026-UGC48QYY.png` loaded in the root branch.
+
+---
 
 ---
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
