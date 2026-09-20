@@ -80,9 +80,8 @@ class RiskDecision(BaseModel):
         ge=0,
         description="The lot size the risk engine calculated as safe",
     )
-    stop_loss: float = Field(
-        ...,
-        gt=0,
+    stop_loss: Optional[float] = Field(
+        default=None,
         description="The stop-loss price approved by the risk engine",
     )
     take_profit: Optional[float] = Field(
@@ -172,6 +171,20 @@ class PostMortemResult(BaseModel):
 #  The Autopilot — Auto-Execution Engine
 # ──────────────────────────────────────────────
 
+class BrokerRiskConfig(BaseModel):
+    """Individual per-broker risk allocation & asset-class filter."""
+    broker_id: str = Field(..., description="Unique broker identifier e.g. 'ftmo_1', 'exness'")
+    account_name: str = Field(default="", description="Account alias e.g. 'FTMO $100k Challenge'")
+    balance: float = Field(default=10000.0, ge=0.0, description="Cached balance for dynamic lot calculation")
+    risk_percent: float = Field(default=1.0, ge=0.1, le=5.0, description="Custom risk % for this specific account")
+    daily_drawdown_limit: float = Field(default=3.0, ge=1.0, le=10.0, description="Custom daily loss cap %")
+    allowed_asset_classes: list[str] = Field(
+        default_factory=lambda: ["FOREX", "METALS", "CRYPTO", "INDICES"],
+        description="Asset categories allowed to trade on this broker"
+    )
+    is_active: bool = Field(default=True, description="Enable or disable execution for this broker")
+
+
 class AutopilotConfig(BaseModel):
     """
     The strict configuration for the Auto-Execution engine.
@@ -198,8 +211,12 @@ class AutopilotConfig(BaseModel):
         description="Hour to stop auto-trading (UTC)."
     )
     preferred_lot_size: float = Field(
-        default=0.01, ge=0.01, le=100.0,
+        default=0.01, ge=0.01, le=10.0,
         description="The user's preferred position size. Default 0.01 micro-lots."
+    )
+    broker_overrides: list[BrokerRiskConfig] = Field(
+        default_factory=list,
+        description="Per-broker individual risk allocations and asset class filters."
     )
     active_allocations: dict[str, float] = Field(
         default_factory=dict, 
@@ -212,6 +229,36 @@ class AutopilotConfig(BaseModel):
     assist_mode: bool = Field(
         default=False,
         description="If True, Sniper arms but waits for user confirmation before executing."
+    )
+    
+    # ── Tier Gating & Trade Management Features ──
+    max_connected_brokers: int = Field(
+        default=1, ge=1, le=5,
+        description="Max brokers allowed: Core=1, Precision=2, Sovereign=5."
+    )
+    session_armed: bool = Field(
+        default=False,
+        description="Precision tier: True when user has armed an active trading session."
+    )
+    session_armed_until: Optional[str] = Field(
+        default=None,
+        description="ISO UTC timestamp when the Precision tier armed session expires and disarms."
+    )
+    auto_breakeven_enabled: bool = Field(
+        default=False,
+        description="Precision & Sovereign: Auto-moves Stop Loss to breakeven after +1.5R gain."
+    )
+    auto_partial_take_profit: bool = Field(
+        default=False,
+        description="Precision & Sovereign: Auto-banks 50% profit at Target 1."
+    )
+    dynamic_trailing_stop: bool = Field(
+        default=False,
+        description="Sovereign tier ONLY: Dynamic ATR Chandelier trailing stop on runners."
+    )
+    is_24_7_autonomous: bool = Field(
+        default=False,
+        description="Sovereign tier ONLY: 100% hands-free unattended 24/5 cloud daemon execution."
     )
     
     # Institutional Compounding Engine
@@ -276,6 +323,22 @@ class AutopilotConfig(BaseModel):
     last_week_reset_date: Optional[str] = Field(
         default=None,
         description="ISO week string (YYYY-WXX) of last weekly counter reset. Used to reset weekly_auto_trades_count at week boundary."
+    )
+    account_balance: float = Field(
+        default=10_000.0, ge=0.0,
+        description="User account balance or paper demo capital in USD."
+    )
+    risk_per_trade: float = Field(
+        default=1.0, ge=0.1, le=10.0,
+        description="Target risk percentage per trade (0.1% to 10.0%)."
+    )
+    daily_loss_usd: float = Field(
+        default=0.0, ge=0.0,
+        description="Cumulative realized daily loss in USD for the 3% daily drawdown kill-switch."
+    )
+    max_risk_per_trade_pct: float = Field(
+        default=1.0, ge=0.1, le=10.0,
+        description="Maximum risk percentage per trade cap."
     )
 
 

@@ -239,7 +239,10 @@ class RiskGateway:
             self._sealed.max_risk_per_trade_pct
         )
         if getattr(order, 'is_auto_execution', False):
-            user_risk_pct = min(user_risk_pct, 0.5)  # Autopilot cap matches kernel
+            # Match the kernel: autopilot now honours user's actual risk_percentage.
+            # No extra cap here — Gate 3's job is to catch kernel miscalculations,
+            # not to re-apply a cap that the kernel no longer has.
+            pass
         max_risk_dollars = self._kernel.account.balance * (user_risk_pct / 100)
         pip_size = get_pip_size(order.symbol)
         

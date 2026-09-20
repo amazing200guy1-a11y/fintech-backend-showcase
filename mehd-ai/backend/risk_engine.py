@@ -1,16 +1,8 @@
 """
 Mehd AI — Hard Risk Kernel
 ===========================
-This is the single most important file in the entire system.
-
-The HardRiskKernel sits OUTSIDE all AI influence. No model,
-no Den verdict, no user override can change or bypass
-these rules. They are calculated from raw math on the actual
-account numbers.
-
-Think of it like the circuit breaker in your house — the
-electricity (AI) does the work, but if something goes wrong,
-the breaker (this kernel) cuts power instantly. No negotiation.
+Calculates raw math on actual account numbers. Sits OUTSIDE all AI influence.
+No model, Den verdict, or override can bypass these deterministic rules.
 """
 
 from __future__ import annotations
@@ -18,22 +10,12 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-import json
-import os
-import re
-import time
+import json, os, re, time, math
 
 from models import (
-    AccountHealth, 
-    Direction, 
-    RiskDecision, 
-    TradeOrder, 
-    AIVote,
-    AppConstitution,
-    ConstitutionRule,
-    get_pip_size
+    AccountHealth, Direction, RiskDecision, TradeOrder, AIVote,
+    AppConstitution, ConstitutionRule, get_pip_size, get_pip_value
 )
-
 from constitution_manager import ConstitutionManager
 from risk_state_store import RiskStateStore
 
@@ -148,13 +130,29 @@ class HardRiskKernel:
         from risk_evaluator import evaluate_master_block_risk
         return await evaluate_master_block_risk(self, order, current_price, current_spread)
 
+    def evaluate_trade(
+        self,
+        account_balance: float,
+        risk_per_trade_pct: float,
+        stop_loss_pips: float,
+        symbol: str,
+        current_spread_pips: float = 0.0,
+        daily_loss_accumulated: float = 0.0,
+    ) -> dict:
+        from risk_evaluator import evaluate_trade_risk
+        return evaluate_trade_risk(
+            self,
+            account_balance=account_balance,
+            risk_per_trade_pct=risk_per_trade_pct,
+            stop_loss_pips=stop_loss_pips,
+            symbol=symbol,
+            current_spread_pips=current_spread_pips,
+            daily_loss_accumulated=daily_loss_accumulated,
+        )
+
     def _get_pip_value(self, symbol: str) -> float:
-        """Returns approximate USD pip value for 1 standard lot (100,000 units)."""
-        sym = symbol.upper()
-        if "XAU" in sym: return 1.0
-        if "JPY" in sym: return 7.0
-        if "GBP" in sym and not "USD" in sym: return 12.0
-        return 10.0
+        """Returns USD pip value for 1 standard lot via canonical platform function."""
+        return get_pip_value(symbol)
 
     def calculate_user_lot_size(self, cfg: "AutopilotConfig", stop_loss_pips: float, consensus: float, current_spread: float, symbol: str = "") -> float:
         """
@@ -163,42 +161,52 @@ class HardRiskKernel:
         win streak caps, and max lot ceilings.
         """
         MIN_LOT = 0.01
-        
-        if getattr(cfg, "compounding_mode", "OFF") == "OFF":
-            return MIN_LOT
-
         equity = getattr(cfg, "simulated_equity", 100.0)
-
-        # 1. Negative Equity Protection
         if equity <= 0:
-            cfg.simulated_equity = 100.0
-            cfg.compounding_mode = "OFF"
+            logger.warning("LOT SIZE VETO: Account equity is non-positive ($%.2f). Trade blocked.", equity)
+            return 0.0
+
+        sl_pips = max(stop_loss_pips, 1.0)
+        pip_value = self._get_pip_value(symbol)
+        user_risk_pct = getattr(cfg, "risk_per_trade", 1.0)
+        max_allowed_loss = equity * (min(user_risk_pct, self.MAX_RISK_PER_TRADE_PCT) / 100.0)
+
+        def _safe_min_lot() -> float:
+            cost = MIN_LOT * sl_pips * pip_value
+            if cost > max_allowed_loss:
+                logger.warning(
+                    "LOT SIZE VETO: $%.2f account cannot trade %.1f pip SL at %.1f%% risk "
+                    "— 0.01 lot costs $%.2f but risk limit is $%.2f. Trade blocked.",
+                    equity, sl_pips, user_risk_pct, cost, max_allowed_loss
+                )
+                return 0.0
             return MIN_LOT
 
-        # 2. Capital Protection Floor (Disable if equity < 70% of starting)
-        if equity < 70.0:  # Assuming 100 was starting
-            return MIN_LOT
+        if getattr(cfg, "compounding_mode", "OFF") == "OFF":
+            return _safe_min_lot()
 
-        # 3. Drawdown Check
+        # 1. Capital Protection Floor (Disable if equity < 70% of starting)
+        if equity < 70.0:
+            return _safe_min_lot()
+
+        # 2. Drawdown Check
         drawdown = getattr(cfg, "current_drawdown_pct", 0.0)
         if drawdown >= 5.0:
-            return MIN_LOT
-            
-        # 4. Base Risk sizing — use the user's configured risk, capped at MAX
-        # cfg.risk_per_trade is stored as a percentage (1.0 = 1%)
-        user_risk_pct = getattr(cfg, "risk_per_trade", 1.0)
-        risk_pct = min(user_risk_pct, self.MAX_RISK_PER_TRADE_PCT) / 100  # convert to decimal for math
-        
-        # 5. Drawdown Penalty
+            return _safe_min_lot()
+
+        # 3. Base Risk sizing
+        risk_pct = min(user_risk_pct, self.MAX_RISK_PER_TRADE_PCT) / 100
+
+        # 4. Drawdown Penalty
         if drawdown >= 3.0:
-            risk_pct *= 0.5  # Slash risk by 50%
-            
-        # 6. Loss Streak Protection
+            risk_pct *= 0.5
+
+        # 5. Loss Streak Protection
         losses = getattr(cfg, "consecutive_losses", 0)
         if losses >= 3:
-            return MIN_LOT  # Temporary pause
+            return _safe_min_lot()
         elif losses >= 2:
-            risk_pct *= 0.7  # Reduce by 30%
+            risk_pct *= 0.7
 
         # 8. Controlled Boost (+25%) / ALPHA PREDATOR BOOST (+50%)
         boost = 1.0
@@ -225,15 +233,21 @@ class HardRiskKernel:
         cap_limit = 10.0 if is_predator else 5.0
         dynamic_cap = min(cap_limit, equity * safe_ratio)
         
-        final_lot = max(MIN_LOT, min(raw_lot, dynamic_cap))
+        # 11. Strict Floor Truncation (Never round up risk)
+        floor_lot = math.floor(raw_lot * 100.0) / 100.0
         
-        # 7. Win Streak Freeze (Bypassed in Predator Mode)
-        if wins >= 3 and not is_predator:
-            # Freeze growth by removing boost and capping aggressively
-            frozen_lot = (equity * 0.01) / (sl_pips * pip_value)
-            final_lot = max(MIN_LOT, min(frozen_lot, dynamic_cap))
+        # CAPITAL DEFENSE: If required lot is smaller than broker minimum (0.01),
+        # NEVER clamp upward (which would breach the user's risk percentage).
+        # Return 0.0 to automatically abort the trade.
+        if floor_lot < MIN_LOT:
+            logger.warning(
+                "LOT SIZE VETO: Account equity ($%.2f) cannot absorb %.1f pip SL at %.2f%% risk "
+                "without exceeding broker minimum contract (0.01). Calculated: %.4f lots. Trade blocked.",
+                equity, sl_pips, (risk_pct * 100.0), raw_lot
+            )
+            return 0.0
             
-        return round(final_lot, 2)
+        return min(floor_lot, dynamic_cap)
 
     # ──────────────────────────────────────────────────
     #  PUBLIC: check_volatility() — spread check
@@ -378,16 +392,18 @@ class HardRiskKernel:
 
         This is pure math — the AI has no say in this number.
         """
-        # risk_percentage is stored as a percentage value in TradeOrder (1.0 = 1%, max 1.0).
+        # risk_percentage is stored as a percentage value in TradeOrder (1.0 = 1%, max 10.0).
         # Do NOT multiply by 100 — it's already a percentage, not a decimal.
         client_risk_pct = order.risk_percentage or 1.0
         if order.is_auto_execution:
-            applied_risk_pct = min(0.5, client_risk_pct)  # Autopilot never exceeds 0.5%
+            # Autopilot respects the user's configured risk but caps at MAX_RISK_PER_TRADE_PCT.
+            # The old 0.5% hardcap silently delivered 10x less risk than the user set.
+            applied_risk_pct = min(client_risk_pct, self.MAX_RISK_PER_TRADE_PCT)
         else:
             applied_risk_pct = min(client_risk_pct, self.MAX_RISK_PER_TRADE_PCT)  # Cap at hard ceiling
         max_risk_dollars = self.account.balance * (applied_risk_pct / 100)
 
-        # For forex, 1 pip = 0.0001 for most pairs (0.01 for JPY, 0.1 for XAU)
+        # Pip sizes resolved via canonical get_pip_size: 0.0001 forex, 0.01 JPY/XAU/XAG, 1.0 Crypto/Indices
         pip_size = get_pip_size(order.symbol)
 
         # Use the ACTUAL current market price passed from the streamer.
@@ -404,8 +420,8 @@ class HardRiskKernel:
             stop_distance_pips * self._get_pip_value(order.symbol)
         )
 
-        # Round to 2 decimal places (standard lot precision)
-        safe_lot_size = round(safe_lot_size, 2)
+        # Conservative floor truncation (standard lot precision, never rounds up risk)
+        safe_lot_size = math.floor(safe_lot_size * 100.0) / 100.0
 
         logger.debug(
             "FORGE Risk calc: max_risk=$%.2f, entry=%.5f, sl=%.5f, stop_dist=%.1f pips, safe_lots=%.2f",

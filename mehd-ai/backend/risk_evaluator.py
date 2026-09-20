@@ -25,7 +25,10 @@ async def evaluate_order_risk(kernel_ref, order: TradeOrder, current_price: floa
     
     news_threshold = 60 if order.is_auto_execution else 30
     
-    if minutes_to_news is not None and minutes_to_news <= news_threshold:
+    if minutes_to_news is not None and -30 <= minutes_to_news <= news_threshold:
+        time_desc = f"in {minutes_to_news} mins" if minutes_to_news > 0 else (
+            "releasing RIGHT NOW" if minutes_to_news == 0 else f"released {abs(minutes_to_news)} mins ago (30-min cooldown active)"
+        )
         return RiskDecision(
             approved=False,
             calculated_lot_size=0.0,
@@ -33,7 +36,7 @@ async def evaluate_order_risk(kernel_ref, order: TradeOrder, current_price: floa
             take_profit=order.take_profit,
             rejection_reason=(
                 f"REJECTED: {'SUPREME OVERRIDE' if order.is_auto_execution else 'SOVEREIGN LOCK'}. "
-                f"High impact news in {minutes_to_news} mins. "
+                f"High-impact news {time_desc}. "
                 "Trading is paused to protect capital from extreme volatility spikes."
             ),
             vetoing_agents=["KERNEL", "SENTINEL"]
@@ -88,7 +91,7 @@ async def evaluate_order_risk(kernel_ref, order: TradeOrder, current_price: floa
     safe_lot_size = kernel_ref._calculate_safe_lot_size(order, entry_price=current_price)
 
     if safe_lot_size < 0.01:
-        max_allowed_usd = kernel_ref.account.equity * kernel_ref.MAX_RISK_PER_TRADE_PCT
+        max_allowed_usd = kernel_ref.account.equity * (kernel_ref.MAX_RISK_PER_TRADE_PCT / 100)
         return RiskDecision(
             approved=False,
             calculated_lot_size=0.0,
@@ -96,14 +99,14 @@ async def evaluate_order_risk(kernel_ref, order: TradeOrder, current_price: floa
             take_profit=order.take_profit,
             rejection_reason=(
                 f"REJECTED: Lot size too small or risk exceeds limit. "
-                f"Maximum allowed risk per trade is \${max_allowed_usd:.2f} (1.0% of balance)."
+                f"Maximum allowed risk per trade is ${max_allowed_usd:.2f} ({kernel_ref.MAX_RISK_PER_TRADE_PCT:.1f}% of balance)."
             ),
             vetoing_agents=["KERNEL"]
         )
 
     if safe_lot_size < order.lot_size:
         logger.info(
-            "Kernel DOWNSIZED lot from %.2f to %.2f to respect 1.0%% risk limit",
+            "Kernel DOWNSIZED lot from %.2f to %.2f to respect risk limit",
             order.lot_size,
             safe_lot_size,
         )
@@ -173,10 +176,13 @@ async def evaluate_master_block_risk(kernel_ref, order: TradeOrder, current_pric
     minutes_to_news = calendar_gateway.get_minutes_to_next_high_impact_news(order.symbol)
     
     news_threshold = 60
-    if minutes_to_news is not None and minutes_to_news <= news_threshold:
+    if minutes_to_news is not None and -30 <= minutes_to_news <= news_threshold:
+        time_desc = f"in {minutes_to_news} mins" if minutes_to_news > 0 else (
+            "releasing RIGHT NOW" if minutes_to_news == 0 else f"released {abs(minutes_to_news)} mins ago (30-min cooldown active)"
+        )
         return RiskDecision(
             approved=False, calculated_lot_size=0.0, stop_loss=order.stop_loss or 0.0001, take_profit=order.take_profit,
-            rejection_reason=f"REJECTED: SUPREME OVERRIDE. High impact news in {minutes_to_news} mins.",
+            rejection_reason=f"REJECTED: SUPREME OVERRIDE. High impact news {time_desc}.",
             vetoing_agents=["KERNEL", "SENTINEL"]
         )
 
@@ -212,3 +218,57 @@ async def evaluate_master_block_risk(kernel_ref, order: TradeOrder, current_pric
         expected_price=current_price,
         rejection_reason=None,
     )
+
+
+def evaluate_trade_risk(
+    kernel_ref,
+    account_balance: float,
+    risk_per_trade_pct: float,
+    stop_loss_pips: float,
+    symbol: str,
+    current_spread_pips: float = 0.0,
+    daily_loss_accumulated: float = 0.0,
+) -> dict:
+    """Evaluates an individual trade for Autopilot MAM distribution."""
+    import math
+    if account_balance <= 0.0:
+        return {"allowed": False, "reason": "Account equity zero or negative.", "lot_size": 0.0, "agents_vetoed": ["KERNEL"]}
+
+    max_daily_loss = account_balance * (kernel_ref.MAX_DAILY_DRAWDOWN_PCT / 100.0)
+    if daily_loss_accumulated >= max_daily_loss:
+        return {"allowed": False, "reason": "Daily Drawdown Circuit Breaker (3.0% hard cap) active.", "lot_size": 0.0, "agents_vetoed": ["KERNEL", "SENTINEL"]}
+
+    spread_threshold = kernel_ref.SPREAD_VOLATILITY_THRESHOLD * 0.5
+    if current_spread_pips > spread_threshold:
+        return {"allowed": False, "reason": f"Spread blowout ({current_spread_pips:.1f} pips > {spread_threshold:.1f} limit).", "lot_size": 0.0, "agents_vetoed": ["TITAN"]}
+
+    applied_risk_pct = min(max(0.1, risk_per_trade_pct), kernel_ref.MAX_RISK_PER_TRADE_PCT)
+    max_risk_usd = account_balance * (applied_risk_pct / 100.0)
+    sl_pips = max(stop_loss_pips, 1.0)
+    pip_value = kernel_ref._get_pip_value(symbol)
+
+    raw_lot = max_risk_usd / (sl_pips * pip_value)
+    lot_size = math.floor(raw_lot * 100.0) / 100.0
+
+    if lot_size < 0.01:
+        return {
+            "allowed": False,
+            "reason": (
+                f"Account equity (${account_balance:.2f}) cannot absorb {sl_pips:.1f} pip SL at "
+                f"{applied_risk_pct:.1f}% risk without exceeding broker minimum (0.01 lots)."
+            ),
+            "lot_size": 0.0,
+            "agents_vetoed": ["KERNEL"],
+            "estimated_loss_avoided": max_risk_usd,
+        }
+
+    lot_size = min(lot_size, 10.0)
+
+    return {
+        "allowed": True,
+        "reason": "Risk checks passed.",
+        "lot_size": lot_size,
+        "agents_vetoed": [],
+        "estimated_loss_avoided": 0.0,
+    }
+

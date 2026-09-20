@@ -56,23 +56,56 @@ class SignalPhase(str, Enum):
 
 def get_pip_size(symbol: str) -> float:
     """
-    Returns the pip size for a given trading instrument.
-    
-    This is the ONE AND ONLY place pip_size should be defined.
-    All other files MUST import this function instead of
-    calculating pip_size inline.
-    
+    THE canonical pip size function — single source of truth for the entire platform.
+    All files MUST import this function. Never define pip_size inline elsewhere.
+
     Rules:
-      XAU (Gold)  → 0.01  (Standard 2nd decimal place)
-      JPY pairs   → 0.01  (1 pip = ¥0.01 price movement)
-      All others  → 0.0001 (1 pip = $0.0001 price movement)
+      XAU/XAG (Gold/Silver) → 0.01  (price moves in cents)
+      USOIL/WTI (Crude Oil)  → 0.01  (1 pip = $0.01 price movement)
+      SOL (Solana)           → 0.01  (1 pip = $0.01 price movement)
+      JPY pairs              → 0.01  (1 pip = ¥0.01 price movement)
+      BTC, ETH (Crypto)      → 1.0   (1 pip = $1.00 price movement)
+      NAS100, SPX, US30, GER → 1.0   (1 pip = 1 index point)
+      All standard forex     → 0.0001 (1 pip = $0.0001 price movement)
     """
     sym = symbol.upper().replace("/", "")
-    if "XAU" in sym:
+    if "XAU" in sym or "XAG" in sym or "OIL" in sym or "WTI" in sym or "SOL" in sym:
         return 0.01
     if "JPY" in sym:
         return 0.01
+    if "BTC" in sym or "ETH" in sym:
+        return 1.0
+    if any(k in sym for k in ("NAS", "SPX", "US30", "GER", "DAX")):
+        return 1.0
     return 0.0001
+
+
+def get_pip_value(symbol: str) -> float:
+    """
+    THE canonical pip value function (USD per pip for 1 standard lot).
+    Single source of truth across all 20 Sovereign assets.
+
+    Rules:
+      XAU (Gold):   1.0   (100 oz × $0.01 = $1.00/pip/lot)
+      XAG (Silver): 50.0  (5,000 oz × $0.01 = $50.00/pip/lot)
+      USOIL (Crude):10.0  (1,000 barrels × $0.01 = $10.00/pip/lot)
+      JPY pairs:    7.0   (~$7.00/pip/lot at current USD/JPY rates)
+      Crypto (BTC/ETH/SOL): 1.0
+      Indices (NAS/SPX/US30/GER): 1.0
+      Standard FX:  10.0  (100,000 units × $0.0001 = $10.00/pip/lot)
+    """
+    sym = symbol.upper().replace("/", "")
+    if "XAU" in sym:
+        return 1.0
+    if "XAG" in sym:
+        return 50.0
+    if "OIL" in sym or "WTI" in sym:
+        return 10.0
+    if "JPY" in sym:
+        return 7.0
+    if any(k in sym for k in ("BTC", "ETH", "SOL", "US30", "NAS", "SPX", "GER", "DAX")):
+        return 1.0
+    return 10.0
 
 
 # ──────────────────────────────────────────────
@@ -286,8 +319,8 @@ class ConsensusResult(BaseModel):
         description="The locked tier validation (observer, core, precision, institutional)",
     )
     required_threshold: float = Field(
-        default=0.70,
-        description="The matched threshold locked to this tier",
+        default=70.0,
+        description="The matched threshold locked to this tier (0-100 scale, matching consensus_percentage)",
     )
     chairman_summary: Optional[str] = Field(
         default=None,
