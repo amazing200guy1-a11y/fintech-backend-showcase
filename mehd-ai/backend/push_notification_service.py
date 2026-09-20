@@ -34,8 +34,8 @@ logger = logging.getLogger("mehd.push_notification")
 # ──────────────────────────────────────────────
 
 # The Don Decided: Only send push when consensus >= this threshold.
-# This is intentionally high — we do NOT spam users.
-THE_DON_THRESHOLD = 92.0
+# Calibrated to 75.0% for healthy institutional trade frequency.
+THE_DON_THRESHOLD = 75.0
 
 
 # ──────────────────────────────────────────────

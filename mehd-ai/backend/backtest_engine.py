@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 from uuid import uuid4
 
 from models import (
-    MarketSnapshot, TradeOrder, Direction, RiskDecision, AIVote, ConsensusResult
+    MarketSnapshot, TradeOrder, Direction, RiskDecision, AIVote, ConsensusResult, get_pip_size
 )
 from risk_engine import HardRiskKernel
 
@@ -188,6 +188,7 @@ class BacktestEngine:
         equity_curve = [balance]
         trades: list[BacktestTrade] = []
         open_trade: Optional[BacktestTrade] = None
+        open_trade_entry_idx: int = 0
         total_signals = 0
         kernel_rejections = 0
         consecutive_losses = 0
@@ -195,8 +196,8 @@ class BacktestEngine:
         peak_balance = balance
         max_drawdown_pct = 0.0
         
-        pip_size = 0.01 if 'JPY' in symbol else (0.1 if 'XAU' in symbol else 0.0001)
-        pip_value = self._kernel._get_pip_value(symbol)  # $10 forex, $7 JPY, $1 Gold — NOT hardcoded
+        pip_size = get_pip_size(symbol)
+        pip_value = self._kernel._get_pip_value(symbol)  # $10 forex, $9 JPY, $1 Gold — NOT hardcoded
         
         # Reset the risk kernel for this backtest
         self._kernel.account = self._kernel.account.model_copy(
@@ -231,7 +232,7 @@ class BacktestEngine:
                         open_trade.exit_reason = "TP_HIT"
                 
                 # Check hold timeout
-                candles_held = i - trades.index(open_trade) if open_trade in trades else 0
+                candles_held = i - open_trade_entry_idx
                 if open_trade.exit_reason == "" and candles_held >= self.MAX_HOLD_CANDLES:
                     open_trade.exit_price = current_candle['close']
                     open_trade.exit_reason = "TIMEOUT"
@@ -341,6 +342,7 @@ class BacktestEngine:
             
             trades.append(trade)
             open_trade = trade
+            open_trade_entry_idx = i
         
         # ── COMPILE REPORT ──
         duration = time.monotonic() - start_time

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import json
+import math
 from datetime import datetime, timezone
 
 from storage import storage
@@ -11,11 +12,16 @@ from models import AutopilotConfig, FirmInventory
 logger = logging.getLogger("mehd.auto_execution")
 
 TIER_PRIORITY = {
+    "institutional": 1,
+    "sovereign": 1,
     "vip": 1,
+    "precision": 2,
     "commander": 2,
-    "sovereign": 3,
-    "pro": 4,
-    "observer": 5,
+    "pro": 2,
+    "core": 3,
+    "guardian": 3,
+    "observer": 4,
+    "expired": 5,
 }
 
 
@@ -80,6 +86,31 @@ async def run_ledger_distribution_loop(worker_ref) -> None:
                             cfg = worker_ref._reset_stale_counters(cfg)
                             if not cfg.enabled or cfg.frozen:
                                 continue
+
+                            # ── Tier Gating: Core vs Precision vs Sovereign ──
+                            user_tier = raw_cfg.get("tier", "observer").lower()
+                            if user_tier in ("core", "observer", "scout", "expired"):
+                                # Core tier executes via 1-Tap Manual Strike confirmation, not unattended background MAM
+                                continue
+
+                            if user_tier == "precision":
+                                # Precision tier requires active armed session window
+                                if not cfg.session_armed:
+                                    continue
+                                if cfg.session_armed_until:
+                                    try:
+                                        expiry = datetime.fromisoformat(cfg.session_armed_until)
+                                        if expiry.tzinfo is None:
+                                            expiry = expiry.replace(tzinfo=timezone.utc)
+                                        if datetime.now(timezone.utc) > expiry:
+                                            # Session expired -> Auto-disarm and save state
+                                            cfg.session_armed = False
+                                            cfg.session_armed_until = None
+                                            batch_updates[user_id] = json.loads(cfg.model_dump_json())
+                                            continue
+                                    except Exception:
+                                        pass
+
                             if cfg.daily_auto_trades_count >= cfg.max_daily_auto_trades:
                                 continue
                             if symbol in cfg.open_auto_positions:
@@ -87,8 +118,45 @@ async def run_ledger_distribution_loop(worker_ref) -> None:
                             if len(cfg.open_auto_positions) >= cfg.max_concurrent_positions:
                                 continue
                             
+                            # ── Asset Category Classification & Filter ──
+                            def _get_asset_category(sym: str) -> str:
+                                s = sym.replace("/", "").replace("_", "").upper()
+                                if any(m in s for m in ["XAU", "XAG", "GOLD", "SILVER"]):
+                                    return "METALS"
+                                if any(c in s for c in ["BTC", "ETH", "SOL", "BNB", "XRP"]):
+                                    return "CRYPTO"
+                                if any(i in s for i in ["SPX", "NAS", "US30", "GER40"]):
+                                    return "INDICES"
+                                return "FOREX"
+
+                            asset_cat = _get_asset_category(symbol)
+                            if cfg.broker_overrides:
+                                tier_max_brokers = 5 if user_tier in ("sovereign", "institutional") else (2 if user_tier == "precision" else 1)
+                                matching_brokers = [
+                                    b for b in cfg.broker_overrides[:tier_max_brokers]
+                                    if b.is_active and asset_cat in b.allowed_asset_classes
+                                ]
+                                if not matching_brokers:
+                                    continue
+
+                            # ── Currency Sector Correlation Check ──
+                            def _extract_currencies(sym: str) -> list[str]:
+                                clean = sym.replace("/", "").replace("_", "").upper()
+                                if len(clean) == 6 and not any(k in clean for k in ["SPX", "NAS", "US3"]):
+                                    return [clean[:3], clean[3:]]
+                                return [clean]
+
+                            new_currs = _extract_currencies(symbol)
+                            curr_counts: dict[str, int] = {}
+                            for open_sym in cfg.open_auto_positions:
+                                for c in _extract_currencies(open_sym):
+                                    curr_counts[c] = curr_counts.get(c, 0) + 1
+
+                            if any(curr_counts.get(c, 0) >= 2 for c in new_currs):
+                                continue
+                            
                             intended_lot = cfg.active_allocations.get(symbol, cfg.preferred_lot_size)
-                            actual_lot = round(intended_lot * fill_ratio, 2)
+                            actual_lot = math.floor(intended_lot * fill_ratio * 100.0) / 100.0
                             
                             if actual_lot < 0.01:
                                 await worker_ref._log_to_morning_briefing(
@@ -103,7 +171,8 @@ async def run_ledger_distribution_loop(worker_ref) -> None:
                             cfg.daily_auto_trades_count += 1
                             cfg.weekly_auto_trades_count += 1
                             cfg.last_trade_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                            cfg.last_week_reset_date = datetime.now(timezone.utc).strftime("%Y-W%W")
+                            # Only update last_week_reset_date when the week genuinely changes
+                            # (not on every trade — that prevented the counter from ever resetting)
                             
                             msg_prefix = "Master Ledger distribution."
                             if fill_ratio < 1.0:
@@ -149,7 +218,7 @@ async def run_ledger_distribution_loop(worker_ref) -> None:
                         task_data["total_allocated_lots"] = total_allocated_lots
                         await storage.set("ledger_tasks", task_id, task_data)
                         
-                unhedged_lots = total_broker_lots - total_allocated_lots
+                unhedged_lots = max(0.0, round(total_broker_lots - total_allocated_lots, 4))
                 if unhedged_lots > 0:
                     firm_raw = await storage.get("firm_inventory", symbol)
                     if firm_raw:

@@ -102,7 +102,17 @@ mock_firebase_briefs: dict[str, ExecutiveBrief] = {}
 
 VALID_SYMBOLS = [
     # No-slash format — matches what Flutter sends after symbol.replaceAll('/', '')
-    "EURUSD", "NAS100", "BTCUSD", "XAUUSD"
+    "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCAD", "USDCHF",
+    "EURGBP", "GBPJPY", "EURJPY",
+    "XAUUSD", "XAGUSD", "USOIL",
+    "NAS100", "US30", "SPX500", "GER40",
+    "BTCUSD", "ETHUSD", "SOLUSD",
+    # Slashed format compatibility
+    "EUR/USD", "GBP/USD", "AUD/USD", "NZD/USD", "USD/JPY", "USD/CAD", "USD/CHF",
+    "EUR/GBP", "GBP/JPY", "EUR/JPY",
+    "XAU/USD", "XAG/USD", "USOIL",
+    "NAS100", "US30", "SPX500", "GER40",
+    "BTC/USD", "ETH/USD", "SOL/USD",
 ]
 
 # ──────────────────────────────────────────────

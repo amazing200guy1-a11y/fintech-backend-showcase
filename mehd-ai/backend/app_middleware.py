@@ -166,7 +166,7 @@ async def limit_request_body(request: Request, call_next):
     is spoofable — an attacker can claim a small body but send a large one.
 
     CRITICAL FIX: After reading the body for size validation, we re-inject
-    it via request._receive so downstream handlers (like Stripe webhook
+    it via request._receive so downstream handlers (like Paddle/Paystack webhook
     signature verification) can read it again. Without this, the body
     stream is consumed and downstream gets empty bytes.
     """

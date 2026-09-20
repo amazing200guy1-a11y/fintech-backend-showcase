@@ -19,7 +19,7 @@ HOW TO USE:
     from secrets_manager import secrets
 
     # Get a secret (tries GCP first, falls back to env)
-    key = secrets.get("STRIPE_SECRET_KEY")
+    key = secrets.get("PADDLE_WEBHOOK_SECRET")
 
     # Check if a secret exists and is not a placeholder
     if secrets.is_valid("CAPSULE_SIGNING_SECRET"):
@@ -155,8 +155,8 @@ class SecretManager:
         """
         critical_secrets = [
             "CAPSULE_SIGNING_SECRET",
-            "STRIPE_SECRET_KEY",
-            "STRIPE_WEBHOOK_SECRET",
+            "PADDLE_WEBHOOK_SECRET",
+            "PAYSTACK_SECRET_KEY",
         ]
         status = {}
         for name in critical_secrets:

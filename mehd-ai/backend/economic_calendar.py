@@ -123,9 +123,14 @@ ECB_2026 = [
 _CURRENCY_EVENT_MAP = {
     "USD": "nfp,fomc,cpi",     # NFP, FOMC, CPI all affect USD pairs
     "EUR": "ecb",              # ECB affects EUR pairs
-    "GBP": "boe",              # (BOE not hardcoded yet — live API covers it)
-    "JPY": "boj",              # (BOJ not hardcoded yet — live API covers it)
+    "GBP": "boe",              # BOE affects GBP pairs
+    "JPY": "boj",              # BOJ affects JPY pairs
+    "AUD": "rba,cpi",          # RBA affects AUD pairs
+    "NZD": "rbnz,cpi",         # RBNZ affects NZD pairs
+    "CAD": "boc,cpi",          # BOC affects CAD pairs
+    "CHF": "snb,cpi",          # SNB affects CHF pairs
     "XAU": "nfp,fomc,cpi",    # Gold moves violently on USD news
+    "XAG": "nfp,fomc,cpi",    # Silver moves violently on USD news
     "BTC": "fomc",             # Crypto reacts to FOMC
     "ETH": "fomc",
     "NAS": "fomc,cpi",         # NASDAQ reacts to FOMC and CPI
@@ -172,15 +177,110 @@ def _get_hardcoded_events(year: int) -> list[tuple[datetime, str]]:
 #  Gateway Class
 # ──────────────────────────────────────────────
 
+# ──────────────────────────────────────────────
+#  Defensive Normalization Mappings (Multi-API Polyfill)
+# ──────────────────────────────────────────────
+
+COUNTRY_TO_CURRENCY_POLYFILL = {
+    # United States / USD
+    "US": "USD", "USA": "USD", "U.S.": "USD", "U.S.A.": "USD",
+    "UNITED STATES": "USD", "UNITED STATES OF AMERICA": "USD", "AMERICA": "USD",
+    
+    # Eurozone / EUR
+    "EU": "EUR", "EUR": "EUR", "EURO": "EUR", "EUROZONE": "EUR", "EURO AREA": "EUR",
+    "DE": "EUR", "GERMANY": "EUR", "FR": "EUR", "FRANCE": "EUR", "IT": "EUR", "ITALY": "EUR", "ES": "EUR", "SPAIN": "EUR",
+    
+    # United Kingdom / GBP
+    "GB": "GBP", "UK": "GBP", "U.K.": "GBP", "BRITAIN": "GBP", "GREAT BRITAIN": "GBP", "UNITED KINGDOM": "GBP", "ENGLAND": "GBP",
+    
+    # Japan / JPY
+    "JP": "JPY", "JPN": "JPY", "JAPAN": "JPY",
+    
+    # Australia / AUD
+    "AU": "AUD", "AUS": "AUD", "AUSTRALIA": "AUD",
+    
+    # Canada / CAD
+    "CA": "CAD", "CAN": "CAD", "CANADA": "CAD",
+    
+    # Switzerland / CHF
+    "CH": "CHF", "CHE": "CHF", "SWITZERLAND": "CHF", "SWISS": "CHF",
+    
+    # New Zealand / NZD
+    "NZ": "NZD", "NZL": "NZD", "NEW ZEALAND": "NZD",
+    
+    # China / CNH (Global Risk Sentiment)
+    "CN": "CNH", "CHN": "CNH", "CHINA": "CNH",
+}
+
+
+def is_high_impact_event(event: dict) -> bool:
+    """
+    Defensively determines if an event is High Impact (Red Folder).
+    Handles integers (3), strings ('High', 'Critical', 'Red'), and multi-provider keys.
+    """
+    raw_val = (
+        event.get("importance") or
+        event.get("impact") or
+        event.get("severity") or
+        event.get("priority") or
+        event.get("level") or
+        ""
+    )
+    norm = str(raw_val).strip().lower()
+    return norm in ("3", "high", "red", "critical", "tier1", "tier-1", "severe", "holiday")
+
+
+def normalize_event_currency(event: dict) -> str:
+    """
+    Extracts and normalizes currency from any provider's JSON packet.
+    360-Degree Triple-Layer Resolution:
+      1. Direct currency ticker (e.g. 'USD', 'EUR')
+      2. Country code / name polyfill (46 global variants)
+      3. Headline / Central Bank Entity scanner (e.g. 'Fed', 'Powell', 'ECB', 'Lagarde', 'BoJ')
+    """
+    # 1. Direct currency tag if provided
+    direct_curr = str(event.get("currency") or event.get("Currency") or "").strip().upper()
+    if direct_curr and len(direct_curr) == 3:
+        return direct_curr
+
+    # 2. Country name / code lookup
+    country = str(event.get("country") or event.get("Country") or "").strip().upper()
+    if country in COUNTRY_TO_CURRENCY_POLYFILL:
+        return COUNTRY_TO_CURRENCY_POLYFILL[country]
+
+    # 3. 360° Safety Net: Scan Event Name / Headline for Central Bank & Macro Entities
+    text_content = f"{event.get('event', '')} {event.get('headline', '')} {event.get('title', '')}".upper()
+    if any(k in text_content for k in ("FED", "FOMC", "POWELL", "NFP", "PAYROLL", "CPI", "PCE", "TREASURY", "US ")):
+        return "USD"
+    if any(k in text_content for k in ("ECB", "LAGARDE", "EUROZONE", "BUND", "GERMAN")):
+        return "EUR"
+    if any(k in text_content for k in ("BOE", "BANK OF ENGLAND", "BAILEY", "GILT", "BRITISH")):
+        return "GBP"
+    if any(k in text_content for k in ("BOJ", "BANK OF JAPAN", "UEDA", "YEN", "JGB")):
+        return "JPY"
+    if any(k in text_content for k in ("RBA", "RESERVE BANK OF AUSTRALIA", "BULLOCK", "AUSSIE")):
+        return "AUD"
+    if any(k in text_content for k in ("BOC", "BANK OF CANADA", "MACKLEM", "LOONIE")):
+        return "CAD"
+    if any(k in text_content for k in ("SNB", "SWISS NATIONAL BANK", "JORDAN")):
+        return "CHF"
+        
+    return direct_curr
+
+
 class EconomicCalendarGateway:
     """
     Two-layer news protection:
       Layer 1: Hardcoded NFP/FOMC/CPI/ECB schedule (always active)
-      Layer 2: Live API from Financial Modeling Prep (when API key is set)
+      Layer 2: Live API from Financial Modeling Prep / TradingEconomics (when API key is set)
     """
     
     def __init__(self):
-        self.api_key = os.getenv("ECONOMIC_API_KEY", "")
+        self.api_key = (
+            os.getenv("ECONOMIC_API_KEY", "").strip()
+            or os.getenv("FMP_API_KEY", "").strip()
+            or os.getenv("FINNHUB_API_KEY", "").strip()
+        )
         self.base_url = "https://financialmodelingprep.com/api/v3/economic_calendar"
         self._is_live = bool(self.api_key)
         
@@ -190,16 +290,20 @@ class EconomicCalendarGateway:
         self._CACHE_TTL = 4 * 60 * 60  # 4 hours
         
         if self._is_live:
-            logger.info("EconomicCalendar: LIVE mode — connected to Financial Modeling Prep + hardcoded schedule.")
+            logger.info("EconomicCalendar: LIVE mode — connected to Global Macro Feed + hardcoded schedule.")
         else:
             logger.info(
                 "EconomicCalendar: HARDCODED mode — using known NFP/FOMC/CPI/ECB schedule. "
-                "Set ECONOMIC_API_KEY for full coverage of all events."
+                "Set ECONOMIC_API_KEY / FINNHUB_API_KEY for full live coverage of all events."
             )
 
     @property
     def is_live(self) -> bool:
-        return bool(os.getenv("ECONOMIC_API_KEY", ""))
+        return bool(
+            os.getenv("ECONOMIC_API_KEY", "").strip()
+            or os.getenv("FMP_API_KEY", "").strip()
+            or os.getenv("FINNHUB_API_KEY", "").strip()
+        )
 
     def get_minutes_to_next_high_impact_news(self, symbol: str) -> Optional[int]:
         """
@@ -259,7 +363,7 @@ class EconomicCalendarGateway:
         return closest_minutes
 
     def _check_live_api(self, symbol: str, affected_currencies: list[str], now: datetime) -> Optional[int]:
-        """Fetch high-impact events from Financial Modeling Prep and find the nearest one."""
+        """Fetch high-impact events from live API and find the nearest one."""
         # Refresh cache if stale
         if (time.time() - self._cache_timestamp) > self._CACHE_TTL:
             self._refresh_live_cache(now)
@@ -267,17 +371,15 @@ class EconomicCalendarGateway:
         closest: Optional[int] = None
         
         for event in self._live_cache:
-            impact = event.get("impact", "").lower()
-            if impact not in ("high", "holiday"):
+            # 1. Defensive Impact Check (Handles 3, 'High', 'Red', 'Critical')
+            if not is_high_impact_event(event):
                 continue
             
-            # Check if event currency matches symbol
-            event_country = event.get("country", "").upper()
-            currency_map = {"US": "USD", "EU": "EUR", "GB": "GBP", "JP": "JPY", "AU": "AUD", "CA": "CAD", "CH": "CHF"}
-            event_currency = currency_map.get(event_country, "")
+            # 2. Defensive Currency & Country Normalization
+            event_currency = normalize_event_currency(event)
             
             if event_currency not in [c for c in affected_currencies]:
-                # Also check XAU/BTC sensitivity to USD
+                # Also check XAU/BTC/NAS sensitivity to USD
                 if event_currency == "USD" and any(c in ("XAU", "BTC", "ETH", "NAS", "US3") for c in affected_currencies):
                     pass  # USD events affect gold/crypto/indices
                 else:
@@ -296,7 +398,7 @@ class EconomicCalendarGateway:
                         closest = int(delta)
                         logger.debug(
                             "Live API event: %s (%s) in %.0f minutes",
-                            event.get("event", "Unknown"), event_country, delta
+                            event.get("event", "Unknown"), event.get("country", "Global"), delta
                         )
             except (ValueError, TypeError):
                 continue
@@ -304,25 +406,61 @@ class EconomicCalendarGateway:
         return closest
 
     def _refresh_live_cache(self, now: datetime) -> None:
-        """Fetch today's events from Financial Modeling Prep."""
+        """Fetch today's events from Financial Modeling Prep or Finnhub."""
         try:
             import httpx
-            
             today = now.strftime("%Y-%m-%d")
             tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
-            url = f"{self.base_url}?from={today}&to={tomorrow}&apikey={self.api_key}"
-            
-            resp = httpx.get(url, timeout=10.0)
-            resp.raise_for_status()
-            
-            self._live_cache = resp.json() if isinstance(resp.json(), list) else []
-            self._cache_timestamp = time.time()
-            logger.info("EconomicCalendar: Refreshed live cache — %d events loaded.", len(self._live_cache))
-            
+
+            finnhub_key = os.getenv("FINNHUB_API_KEY", "").strip()
+            fmp_key = (os.getenv("FMP_API_KEY", "").strip() or os.getenv("ECONOMIC_API_KEY", "").strip())
+
+            events = []
+            # 1. Try Finnhub if key is configured
+            if finnhub_key:
+                try:
+                    url = f"https://finnhub.io/api/v1/calendar/economic?from={today}&to={tomorrow}&token={finnhub_key}"
+                    resp = httpx.get(url, timeout=10.0)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        raw_list = data.get("economicCalendar", []) if isinstance(data, dict) else []
+                        # Normalize Finnhub format to standard event schema
+                        for item in raw_list:
+                            events.append({
+                                "event": item.get("event") or item.get("title", ""),
+                                "date": item.get("time") or item.get("date", ""),
+                                "country": item.get("country", ""),
+                                "currency": item.get("currency", ""),
+                                "impact": item.get("impact", "High"),
+                                "actual": item.get("actual"),
+                                "estimate": item.get("estimate"),
+                                "previous": item.get("previous"),
+                            })
+                except Exception as fe:
+                    logger.debug("Finnhub economic calendar fetch failed: %s", fe)
+
+            # 2. Try FMP if Finnhub produced no events and FMP key exists
+            if not events and fmp_key:
+                try:
+                    url = f"https://financialmodelingprep.com/api/v3/economic_calendar?from={today}&to={tomorrow}&apikey={fmp_key}"
+                    resp = httpx.get(url, timeout=10.0)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        events = data if isinstance(data, list) else []
+                except Exception as fme:
+                    logger.debug("FMP economic calendar fetch failed: %s", fme)
+
+            if events:
+                self._live_cache = events
+                self._cache_timestamp = time.time()
+                logger.info("EconomicCalendar: Refreshed live cache — %d live events loaded.", len(self._live_cache))
+            else:
+                self._cache_timestamp = time.time()
+                logger.debug("EconomicCalendar: Live check completed, fallback schedule active.")
+
         except Exception as e:
             logger.warning("EconomicCalendar: Live API fetch failed (%s). Hardcoded schedule still active.", e)
-            # Don't clear cache on failure — stale data is better than no data
-            self._cache_timestamp = time.time()  # Prevent hammering the API on repeated failures
+            self._cache_timestamp = time.time()
 
 
 # Singleton

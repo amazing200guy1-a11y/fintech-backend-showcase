@@ -48,31 +48,37 @@ class CryptoVault:
             raise RuntimeError("Failed to encrypt secret key.")
 
     def decrypt_secret(self, encrypted_secret: str) -> str:
-        """Decrypts an AES-256 Fernet token back to raw API key."""
+        """Decrypts an AES-256 Fernet or v2 token back to raw API key. If already plain, returns unchanged."""
         if not encrypted_secret:
             return ""
+        # If it's already plaintext (neither Fernet 'gAAAAA' nor v2 'v2:' prefix), return as-is
+        if not (encrypted_secret.startswith("gAAAAA") or encrypted_secret.startswith("v2:")):
+            return encrypted_secret
+        if encrypted_secret.startswith("v2:"):
+            from secrets_manager import encryption
+            return encryption.decrypt(encrypted_secret)
         try:
             decrypted_bytes = self._fernet.decrypt(encrypted_secret.encode("utf-8"))
             return decrypted_bytes.decode("utf-8")
         except Exception as e:
             logger.error("CryptoVault decryption failed: %s", e)
-            return ""
+            return encrypted_secret
 
     def encrypt_credentials(self, credentials: Dict[str, str]) -> Dict[str, str]:
-        """Encrypts dictionary containing api_key and account_id."""
+        """Encrypts dictionary containing api_key, api_secret, password, token."""
         encrypted = {}
         for k, v in credentials.items():
-            if k in ("api_key", "secret_key", "password", "token"):
+            if k in ("api_key", "secret_key", "password", "token", "api_secret"):
                 encrypted[k] = self.encrypt_secret(v)
             else:
                 encrypted[k] = v
         return encrypted
 
     def decrypt_credentials(self, credentials: Dict[str, str]) -> Dict[str, str]:
-        """Decrypts dictionary containing encrypted api_key."""
+        """Decrypts dictionary containing encrypted credentials safely."""
         decrypted = {}
         for k, v in credentials.items():
-            if k in ("api_key", "secret_key", "password", "token"):
+            if k in ("api_key", "secret_key", "password", "token", "api_secret"):
                 decrypted[k] = self.decrypt_secret(v)
             else:
                 decrypted[k] = v

@@ -283,8 +283,12 @@ class MarketDataStreamer:
         import statistics
         
         # Find the "truth" median bid
-        bids = [s.bid for s in valid_snapshots]
+        bids = [s.bid for s in valid_snapshots if s.bid > 0]
+        if not bids:
+            return self._generate_realistic_mock_tick(symbol)
         median_bid = statistics.median(bids)
+        if median_bid <= 0:
+            return self._generate_realistic_mock_tick(symbol)
         
         # Outlier Rejection Threshold (0.05% deviation = ~5 pips)
         MAX_DIVERGENCE_PCT = 0.0005 
@@ -347,7 +351,8 @@ class MarketDataStreamer:
         result = resp.json()["results"][0]
         bid = result["c"]
         ask = bid + 0.0002  # Polygon doesn't give B/A for forex on free tier
-        pip_size = 0.01 if "JPY" in symbol else 0.0001
+        pip_size = 1.0 if "BTC" in symbol else (0.1 if ("XAU" in symbol or "GOLD" in symbol) else (0.01 if "JPY" in symbol else 0.0001))
+        ask = bid + (1.5 * pip_size)  # Default spread buffer
         return MarketSnapshot(
             symbol=symbol, bid=bid, ask=ask, spread=round((ask - bid) / pip_size, 1),
             timestamp=datetime.now(timezone.utc), open=result["o"], high=result["h"],
@@ -365,7 +370,7 @@ class MarketDataStreamer:
         resp.raise_for_status()
         data = resp.json()
         price = float(data["price"])
-        pip_size = 0.01 if "JPY" in symbol else 0.0001
+        pip_size = 1.0 if "BTC" in symbol else (0.1 if ("XAU" in symbol or "GOLD" in symbol) else (0.01 if "JPY" in symbol else 0.0001))
         ask = price + (1.5 * pip_size)  # Approximate spread
         return MarketSnapshot(
             symbol=symbol, bid=price, ask=round(ask, 5), spread=1.5,

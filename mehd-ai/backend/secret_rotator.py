@@ -15,7 +15,12 @@ class SecretRotator:
 
     @staticmethod
     async def rotate_internal_tokens(uid: str) -> dict:
-        """Rotates user-level internal security tokens."""
+        """Rotates user-level internal security tokens.
+
+        After writing the new token, clears the SecretManager's in-memory cache
+        so any subsequent calls re-fetch fresh values from GCP Secret Manager
+        instead of serving stale secrets from the LRU cache.
+        """
         new_token = f"mhd_sec_{secrets.token_urlsafe(32)}"
         now = datetime.now(timezone.utc).isoformat()
 
@@ -26,6 +31,16 @@ class SecretRotator:
         }
 
         await storage.set("secret_rotations", uid, rotation_data)
+
+        # SECURITY: Flush the SecretManager's in-memory cache so the new secret
+        # is fetched fresh on next access rather than returning the old cached value.
+        try:
+            from secrets_manager import secrets as secret_manager
+            secret_manager.clear_cache()
+            logger.info("SECRET ROTATION: Cache flushed after rotation for user %s", uid)
+        except Exception as e:
+            logger.warning("SECRET ROTATION: Could not flush secrets cache: %s", e)
+
         logger.info("SECRET ROTATION: Rotated internal tokens for user %s", uid)
         return rotation_data
 

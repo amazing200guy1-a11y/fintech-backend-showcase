@@ -20,7 +20,10 @@ class ConstitutionManager:
 
     @classmethod
     def _default_constitution(cls) -> AppConstitution:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return AppConstitution(
+            last_reset_date=today,
+            daily_trades_count=0,
             rules=[
                 ConstitutionRule(
                     name="Overtrading Protection",
@@ -74,11 +77,24 @@ class ConstitutionManager:
             
     @classmethod
     async def increment_daily_trades(cls, user_id: Optional[str] = None) -> None:
-        const = await cls.load(user_id=user_id)
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        if const.last_reset_date != today:
-            const.daily_trades_count = 0
-            const.last_reset_date = today
-            
-        const.daily_trades_count += 1
-        await cls.save(const, user_id=user_id)
+        from storage import storage
+        key = user_id if user_id else "global"
+        lock_key = f"constitution_lock_{key}"
+        # Acquire a distributed lock to make read-modify-write atomic.
+        # Without this, concurrent manual + autopilot executions both read
+        # count=N, both increment to N+1, and both save — bypassing the daily cap.
+        got_lock = await storage.acquire_lock(lock_key, ttl_seconds=10)
+        if not got_lock:
+            logger.warning("Constitution lock contention for user %s — skipping duplicate increment", key)
+            return
+        try:
+            const = await cls.load(user_id=user_id)
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            if const.last_reset_date != today:
+                const.daily_trades_count = 0
+                const.last_reset_date = today
+
+            const.daily_trades_count += 1
+            await cls.save(const, user_id=user_id)
+        finally:
+            await storage.release_lock(lock_key)

@@ -25,6 +25,24 @@ _MAX_LATENCY_MS = 100.0                # Milliseconds before latency spike trigg
 _BOOT_GRACE_PERIOD_SEC = 300.0         # 5-minute grace on boot — heartbeat not yet established
 
 
+def _get_max_discrepancy_pips(symbol: str) -> float:
+    """
+    Symbol-aware threshold for broker vs independent oracle price discrepancy:
+    - Gold / Silver (XAU, XAG): 25.0 pips ($0.25)
+    - Crypto (BTC, ETH): 50.0 pips ($50 on BTC)
+    - Indices (NAS100, US30): 15.0 pips (15 points)
+    - Standard Forex: 5.0 pips
+    """
+    sym = symbol.upper().replace("/", "")
+    if "XAU" in sym or "XAG" in sym:
+        return 25.0
+    elif "BTC" in sym or "ETH" in sym:
+        return 50.0
+    elif any(k in sym for k in ("NAS", "US30", "SPX")):
+        return 15.0
+    return _MAX_PRICE_DISCREPANCY_PIPS
+
+
 class HardenedKillSwitch:
     def __init__(self):
         # Initialize heartbeat to current time so we start in OK state.
@@ -100,14 +118,15 @@ class HardenedKillSwitch:
             )
             return {"status": "HALT", "reason": f"LATENCY_SPIKE_{execution_latency_ms:.1f}MS"}
 
-        # 4. Anti-Broker Manipulation Check (5-pip discrepancy vs independent oracle)
+        # 4. Anti-Broker Manipulation Check (symbol-aware discrepancy vs independent oracle)
         if broker_price > 0 and oracle_price > 0 and pip_size > 0:
             price_diff_pips = abs(broker_price - oracle_price) / pip_size
-            if price_diff_pips > _MAX_PRICE_DISCREPANCY_PIPS:
+            max_pips = _get_max_discrepancy_pips(symbol)
+            if price_diff_pips > max_pips:
                 logger.critical(
                     "🚨 BROKER MANIPULATION DETECTED on %s — "
                     "Broker=%.5f vs Oracle=%.5f (Diff: %.1f pips > %.1f pips threshold)",
-                    symbol, broker_price, oracle_price, price_diff_pips, _MAX_PRICE_DISCREPANCY_PIPS
+                    symbol, broker_price, oracle_price, price_diff_pips, max_pips
                 )
                 return {
                     "status": "HALT",

@@ -28,6 +28,8 @@ async def run_lifecycle_manager_loop(broadcaster_ref) -> None:
                     continue
                 try:
                     bt = datetime.fromisoformat(bt_str)
+                    if bt.tzinfo is None:
+                        bt = bt.replace(tzinfo=timezone.utc)
                 except ValueError:
                     continue
                     

@@ -26,8 +26,8 @@ logger = logging.getLogger("mehd.notifications")
 # In production with multiple workers, move this to Redis.
 NOTIFICATION_COOLDOWN_SECONDS = 3600  # 1 hour per symbol
 
-# Minimum consensus to trigger a notification
-MIN_CONVICTION_PERCENT = 92.0
+# Minimum consensus to trigger a notification (calibrated to 70% standard for 8/11 super-majority)
+MIN_CONVICTION_PERCENT = 70.0
 
 
 def _get_firebase_messaging():

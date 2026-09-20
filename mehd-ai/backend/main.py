@@ -49,7 +49,7 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from slowapi import _rate_limit_exceeded_handler
@@ -65,6 +65,7 @@ from weekly_scan_worker import weekly_scan_worker
 from truth_engine_worker import truth_engine_worker
 from personalization_worker import personalization_worker
 from virtual_stop_worker import virtual_stop_worker
+from mt5_sentinel_worker import mt5_sentinel_worker
 from state import (
     audit, den_engine, streamer, risk_client,
     DEMO_MODE, start_time,
@@ -79,6 +80,7 @@ from routes.admin import router as admin_router
 from routes.broadcast import router as broadcast_router
 from routes.payments import router as payments_router
 from routes.websocket_signals import router as ws_router, init_ws_redis_listener
+from routes.audit import router as audit_router
 from auth import auth_router
 
 # ──────────────────────────────────────────────
@@ -113,7 +115,7 @@ audit_logger.addHandler(_audit_handler)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async def _on_strong_signal(notification: dict):
-        """Called by Broadcaster when a signal exceeds 92% conviction.
+        """Called by Broadcaster when a signal exceeds 75% conviction.
         Sends directly to individual registered device tokens (not topic broadcast)
         to prevent double-notifications for users subscribed to both channels.
         """
@@ -210,20 +212,27 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("WebSocket Redis listener init failed (non-fatal): %s", e)
 
-    logger.info("=" * 60)
+    logger.info("==" * 30)
     logger.info("  MEHD AI — Ready to protect traders")
-    logger.info("=" * 60)
+    logger.info("==" * 30)
 
-    yield  # ← App running
+    # Start the MT5 Sentinel Worker — monitors live Exness positions
+    # for Auto-BE, Auto-Bank 50%, Titan Lock, and Sovereign Apex triggers
+    virtual_stop_worker.start()
+    mt5_sentinel_worker.start()
+    logger.info("Shield MT5 Sentinel Worker armed — autonomous profit engine active.")
 
-    # ── SHUTDOWN ─────────────────────────────
-    logger.info("MEHD AI — Shutting down gracefully")
+    yield  # <- App running
+
+    # -- SHUTDOWN -----------------------------------------
+    logger.info("MEHD AI -- Shutting down gracefully")
     auto_execution_worker.stop()
     cleanup_worker.stop()
     weekly_scan_worker.stop()
     truth_engine_worker.stop()
     personalization_worker.stop()
     virtual_stop_worker.stop()
+    mt5_sentinel_worker.stop()
     broadcaster.stop()
     await streamer.stop()
     black_swan.stop_daemon()
@@ -294,8 +303,8 @@ from security_guard import threat_jail, get_real_client_ip
 async def fortress_security_middleware(request: Request, call_next):
     client_ip = get_real_client_ip(request)
 
-    # 1. Threat Jail IP Ban Check
-    if threat_jail.is_ip_banned(client_ip):
+    # 1. Threat Jail IP Ban Check (async — honours bans persisted across restarts)
+    if await threat_jail.is_ip_banned_async(client_ip):
         logger.warning("🚨 FORTRESS DEFENSE: Blocked request from banned IP %s", client_ip)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -327,6 +336,7 @@ app.include_router(broadcast_router)
 app.include_router(payments_router)
 app.include_router(ws_router)
 app.include_router(auth_router)
+app.include_router(audit_router)
 
 # ── Track Record Stats Endpoint ──
 @app.get("/track-record")

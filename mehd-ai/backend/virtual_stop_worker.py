@@ -90,7 +90,7 @@ class VirtualStopWorker:
             take_profit = data.get("take_profit")
             account_id = data.get("account_id")
 
-            if not all([symbol, direction, account_id]):
+            if not all([symbol, direction]):
                 continue
 
             snap = streamer.get_latest_snapshot(symbol)

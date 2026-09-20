@@ -21,11 +21,18 @@ def _safe_create_task(coro, name: str = "unnamed"):
     return asyncio.create_task(_wrapper())
 
 
-# Pairs the Broadcaster monitors — synced with Flutter's AppConstants.symbols
+# The Top 20 Sovereign Institutional Matrix — synced with Flutter's AppConstants.symbols
 BROADCAST_PAIRS = [
-    "EUR/USD", "GBP/USD", "AUD/USD", "USD/JPY", "USD/CAD", "XAU/USD",
-    "USD/CHF", "NZD/USD", "EUR/GBP", "EUR/JPY", "GBP/JPY",
-    "USD/ZAR", "XAG/USD", "BTC/USD", "NAS100",
+    # Forex Majors (7)
+    "EUR/USD", "GBP/USD", "AUD/USD", "NZD/USD", "USD/JPY", "USD/CAD", "USD/CHF",
+    # High-Alpha Crosses (3)
+    "EUR/GBP", "GBP/JPY", "EUR/JPY",
+    # Commodities & Energy (3)
+    "XAU/USD", "XAG/USD", "USOIL",
+    # Macro Equities Indices (4)
+    "NAS100", "US30", "SPX500", "GER40",
+    # Digital Sovereign Crypto (3)
+    "BTC/USD", "ETH/USD", "SOL/USD",
 ]
 
 CYCLE_INTERVAL_SECONDS = 300
@@ -51,8 +58,8 @@ class BroadcastSignal:
         pct = self.consensus.consensus_percentage
         emoji = "🟢" if direction == "BUY" else "🔴" if direction == "SELL" else "⚪"
 
-        if pct < 92:
-            return None  # Don't spam users with weak signals
+        if pct < 75:
+            return None  # Don't spam users with weak signals below 75% consensus
 
         return {
             "title": f"{emoji} {self.symbol} — {direction} Signal",

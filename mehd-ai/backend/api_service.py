@@ -74,7 +74,7 @@ class ApiService:
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+                    'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
                     headers={'x-goog-api-key': self.gemini_key},
                     json={'contents': [{'parts': [{'text': prompt}]}]},
                     timeout=10.0
