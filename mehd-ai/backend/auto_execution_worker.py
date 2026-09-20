@@ -13,6 +13,7 @@ FIXES APPLIED:
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone, timedelta
 import json
 import traceback
@@ -31,7 +32,9 @@ logger = logging.getLogger("mehd.auto_execution")
 # Lower number = Higher priority.
 # This ensures Institutional users get filled first during liquidity events.
 TIER_PRIORITY = {
+    "sovereign": -1,
     "institutional": -1,
+    "vip": -1,
     "precision": 1,
     "core": 2,
     "observer": 3,
@@ -46,29 +49,7 @@ TIER_PRIORITY = {
 MAX_SIGNAL_AGE_SECONDS = 300  # 5 minutes
 
 # ── Market Hours Filter ──────────────────────────
-# Forex & Metals: Sunday 22:00 UTC → Friday 22:00 UTC (24/5)
-# Crypto pairs (BTC/USD, etc.): 24/7/365 Non-stop
-def is_market_open(symbol: str = "") -> bool:
-    """Check if the market for the given symbol is currently open.
-    Crypto pairs trade 24/7/365.
-    Forex & metals close on weekends (Friday 22:00 UTC → Sunday 22:00 UTC)."""
-    sym_upper = symbol.upper()
-    if "BTC" in sym_upper or "ETH" in sym_upper or "SOL" in sym_upper or "CRYPTO" in sym_upper:
-        return True  # Crypto markets never sleep
-
-    now = datetime.now(timezone.utc)
-    weekday = now.weekday()  # 0=Mon, 6=Sun
-    hour = now.hour
-    # Friday after 22:00 UTC → market closed
-    if weekday == 4 and hour >= 22:
-        return False
-    # Saturday → market closed
-    if weekday == 5:
-        return False
-    # Sunday before 22:00 UTC → market closed
-    if weekday == 6 and hour < 22:
-        return False
-    return True
+# Market hours gate is enforced upstream in SniperEngine (sniper_engine.py)
 
 
 class AutoExecutionWorker:
@@ -230,9 +211,11 @@ class AutoExecutionWorker:
         
         if cfg.last_trade_date and cfg.last_trade_date != today:
             cfg.daily_auto_trades_count = 0
+            cfg.daily_loss_usd = 0.0
         
         if cfg.last_week_reset_date and cfg.last_week_reset_date != this_week:
             cfg.weekly_auto_trades_count = 0
+            cfg.last_week_reset_date = this_week
         
         return cfg
 
@@ -268,32 +251,39 @@ class AutoExecutionWorker:
     async def _broker_execute(self, order: TradeOrder, decision) -> dict:
         """
         Executes via the real broker_gateway with a 15-second timeout.
-        
-        The broker_gateway handles both live (OANDA) and paper modes internally.
-        We wrap it in asyncio to prevent blocking the event loop and to detect
-        true network timeouts that should trigger the Freeze protocol.
+        Tracks consecutive failures and trips system pause if broker fails 5 times.
         """
         from broker_gateway import broker_gateway
         
         try:
-            # FIX: broker_gateway.execute_order is an async function.
-            # run_in_executor does not execute coroutines, it just returns them.
             async with self._broker_semaphore:
                 result = await asyncio.wait_for(
                     broker_gateway.execute_order(order, decision),
                     timeout=15.0
                 )
+            if result.get("status") in ("filled", "ok") or result.get("success"):
+                self._consecutive_broker_failures = 0
+            elif result.get("status") in ("error", "timeout"):
+                self._consecutive_broker_failures += 1
             return result
             
         except asyncio.TimeoutError:
-            logger.critical(f"Broker execution timed out after 15s for {order.symbol}")
+            self._consecutive_broker_failures += 1
+            logger.critical(f"Broker execution timed out after 15s for {order.symbol} (failures: {self._consecutive_broker_failures})")
+            if self._consecutive_broker_failures >= self._max_broker_failures:
+                logger.critical("🚨 MAX BROKER FAILURES REACHED (%d). Tripping SYSTEM_PAUSE.", self._consecutive_broker_failures)
+                await storage.set("system_state", "pause_flag", True)
             return {
                 "status": "timeout",
                 "reason": "Broker API did not respond within 15 seconds.",
                 "mode": "unknown"
             }
         except Exception as e:
-            logger.error(f"Broker execution error: {e}")
+            self._consecutive_broker_failures += 1
+            logger.error(f"Broker execution error (failures: {self._consecutive_broker_failures}): {e}")
+            if self._consecutive_broker_failures >= self._max_broker_failures:
+                logger.critical("🚨 MAX BROKER FAILURES REACHED (%d). Tripping SYSTEM_PAUSE.", self._consecutive_broker_failures)
+                await storage.set("system_state", "pause_flag", True)
             return {
                 "status": "error",
                 "reason": f"Broker communication failed: {str(e)}",

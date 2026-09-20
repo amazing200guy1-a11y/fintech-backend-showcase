@@ -5,7 +5,7 @@ import logging
 import time
 import uuid
 import json
-import random
+import random, math
 from datetime import datetime, timezone
 
 from models import Direction, AutopilotConfig, MasterTradeReceipt, LedgerDistributionTask, TradeOrder
@@ -105,7 +105,12 @@ async def run_master_worker(worker_ref) -> None:
             stop_loss_pips = abs(current_price - suggested_sl) / pip_size if current_price > 0 else 50.0
 
             master_kernel = HardRiskKernel()
-            current_spread = signal_data.get("spread", 0.0)
+            # Normalise spread to pips.
+            raw_spread = float(signal_data.get("spread", 0.0) or 0.0)
+            if pip_size < 1.0 and 0.0 < raw_spread < (pip_size * 20.0):
+                current_spread = raw_spread / pip_size
+            else:
+                current_spread = raw_spread
 
             eligible_users = []
             user_lots = {}
@@ -132,6 +137,28 @@ async def run_master_worker(worker_ref) -> None:
                         if len(cfg.open_auto_positions) >= cfg.max_concurrent_positions:
                             continue
                         
+                        # ── Portfolio Diversification Guardrail (Asset Correlation Cap) ──
+                        def _extract_currencies(sym: str) -> list[str]:
+                            clean = sym.replace("/", "").replace("_", "").upper()
+                            if len(clean) == 6 and not any(k in clean for k in ["SPX", "NAS", "US3"]):
+                                return [clean[:3], clean[3:]]
+                            return [clean]
+
+                        new_currs = _extract_currencies(symbol)
+                        curr_counts: dict[str, int] = {}
+                        for open_sym in cfg.open_auto_positions:
+                            for c in _extract_currencies(open_sym):
+                                curr_counts[c] = curr_counts.get(c, 0) + 1
+
+                        if any(curr_counts.get(c, 0) >= 2 for c in new_currs):
+                            await worker_ref._log_rejection(
+                                user_id, symbol, direction_str,
+                                f"Portfolio Diversification Guardrail: Max sector exposure reached for {','.join(new_currs)} (2/2 active). Asset correlation protected.",
+                                agents=["ATLAS", "SENTINEL"],
+                                saved_amount=cfg.account_balance * (cfg.risk_per_trade / 100.0),
+                            )
+                            continue
+                        
                         risk_eval = master_kernel.evaluate_trade(
                             account_balance=cfg.account_balance,
                             risk_per_trade_pct=cfg.risk_per_trade,
@@ -143,7 +170,10 @@ async def run_master_worker(worker_ref) -> None:
 
                         if not risk_eval["allowed"]:
                             await worker_ref._log_rejection(
-                                user_id, symbol, direction_str, risk_eval["reason"], consensus, signal_data.get("cycle_id", 0)
+                                user_id, symbol, direction_str,
+                                risk_eval["reason"],
+                                agents=risk_eval.get("agents_vetoed", []),
+                                saved_amount=risk_eval.get("estimated_loss_avoided", 0.0),
                             )
                             if "Killswitch" in risk_eval["reason"]:
                                 await worker_ref._send_critical_alert(user_id, symbol)
@@ -164,9 +194,10 @@ async def run_master_worker(worker_ref) -> None:
                 logger.info(f"Master Exec: 0 eligible users for {symbol}. Skipping master order.")
                 continue
 
-            total_volume_lots = round(total_volume_lots, 2)
+            total_volume_lots = math.floor(total_volume_lots * 100.0) / 100.0
             if total_volume_lots < 0.01:
-                total_volume_lots = 0.01
+                logger.info(f"Master Exec: Aggregated volume ({total_volume_lots}) below minimum 0.01 lots. Skipping.")
+                continue
 
             master_order = TradeOrder(
                 symbol=symbol,
@@ -183,21 +214,41 @@ async def run_master_worker(worker_ref) -> None:
                 f"Executing {total_volume_lots:.2f} lots {direction_str} on {symbol} via Broker Gateway..."
             )
 
-            result = await worker_ref._broker_execute(master_order, signal_data)
-            
-            if result.get("success"):
-                fill_price = result.get("fill_price", live_price)
-                broker_order_id = result.get("order_id", f"MAM_{uuid.uuid4().hex[:8]}")
-                broker_filled_volume = result.get("filled_volume", total_volume_lots)
+            from market_models import RiskDecision
+            # Build a proper RiskDecision for the broker gateway.
+            # The master order represents an aggregated MAM lot — already risk-checked
+            # per user. We pass the master order's SL/TP and lot size directly.
+            master_decision = RiskDecision(
+                approved=True,
+                calculated_lot_size=total_volume_lots,
+                stop_loss=suggested_sl,
+                take_profit=suggested_tp,
+                expected_price=live_price,
+                use_virtual_stops=True,   # MAM always uses virtual stops
+            )
+
+            result = await worker_ref._broker_execute(master_order, master_decision)
+
+            if result.get("status") in ("filled", "simulated") or result.get("success"):
+                fill_price = float(result.get("fill_price") or live_price)
+                broker_order_id = str(result.get("trade_id") or result.get("order_id") or f"MAM_{uuid.uuid4().hex[:8]}")
+                broker_filled_volume = float(result.get("filled_volume") or total_volume_lots)
+                broker_filled_volume = round(broker_filled_volume, 2)
                 
                 fill_ratio = 1.0
                 if total_volume_lots > 0 and broker_filled_volume < total_volume_lots:
-                    fill_ratio = broker_filled_volume / total_volume_lots
+                    fill_ratio = round(broker_filled_volume / total_volume_lots, 4)
                     logger.warning(
                         f"⚠️ PARTIAL FILL: Broker filled {broker_filled_volume:.2f} / {total_volume_lots:.2f} lots "
                         f"({fill_ratio*100:.1f}%) for {symbol}. Scaling user allocations."
                     )
                 
+                # Check idempotency: ensure this receipt hasn't already been recorded
+                existing_receipt = await storage.get("master_receipts", broker_order_id)
+                if existing_receipt:
+                    logger.warning("Duplicate master receipt %s detected. Skipping duplicate ledger task.", broker_order_id)
+                    continue
+
                 master_receipt = MasterTradeReceipt(
                     master_order_id=broker_order_id,
                     symbol=symbol,
@@ -239,9 +290,32 @@ async def run_master_worker(worker_ref) -> None:
             else:
                 reason = result.get("reason", "Broker execution failed")
                 logger.error(f"❌ MASTER EXECUTION FAILED on {symbol}: {reason}")
+                if result.get("status") == "timeout":
+                    ghost_id = f"GHOST_{symbol}_{int(time.time())}"
+                    logger.critical(
+                        "🚨 BROKER TIMEOUT ON %s: Master order state is UNKNOWN. "
+                        "Registering ghost trade %s for reconciliation.", symbol, ghost_id
+                    )
+                    await storage.set("ghost_trades", ghost_id, {
+                        "symbol": symbol,
+                        "direction": direction_str,
+                        "requested_volume": total_volume_lots,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "users": eligible_users,
+                        "status": "UNRECONCILED",
+                    })
+
                 for u_id in eligible_users:
+                    try:
+                        u_raw = await storage.get("autopilot_configs", u_id)
+                        if u_raw:
+                            u_cfg = AutopilotConfig.model_validate(u_raw)
+                            u_cfg.active_allocations.pop(symbol, None)
+                            await worker_ref._save_config(u_id, u_cfg)
+                    except Exception as err:
+                        logger.warning(f"Failed to clear active allocation for user {u_id}: {err}")
                     await worker_ref._log_rejection(
-                        u_id, symbol, direction_str, f"Master Order Rejected by Broker: {reason}", consensus, signal_data.get("cycle_id", 0)
+                        u_id, symbol, direction_str, f"Master Order Rejected by Broker: {reason}", agents=["BROKER"], saved_amount=0.0
                     )
 
         except Exception as e:

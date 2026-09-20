@@ -1,20 +1,4 @@
-"""
-Mehd AI — Broker Gateway (OANDA v20 REST API)
-===============================================
-This module is the ONLY code that talks to the real broker.
-When OANDA_API_KEY and OANDA_ACCOUNT_ID are set in .env,
-the system executes real trades. When they're missing, it
-returns mock fills.
-
-OANDA v20 REST API Documentation:
-  https://developer.oanda.com/rest-live-v20/order-ep/
-
-SECURITY:
-  - This module is ONLY called from risk_gateway.py after all
-    4 gates have passed (seal check, kernel eval, double-validate, execute)
-  - The TradeOrder has already been capped to safe lot sizes
-  - Stop-loss and take-profit are already verified
-"""
+"""Mehd AI — Broker Gateway (OANDA v20 REST API & Native MT5 Gateway)."""
 
 from __future__ import annotations
 
@@ -39,54 +23,75 @@ OANDA_API_URL = os.getenv("OANDA_API_URL", "https://api-fxpractice.oanda.com")
 
 # Symbol mapping: Mehd uses EURUSD, OANDA uses EUR_USD
 OANDA_SYMBOL_MAP = {
-    "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY",
-    "AUDUSD": "AUD_USD", "USDCAD": "USD_CAD", "NZDUSD": "NZD_USD",
-    "EURGBP": "EUR_GBP", "EURJPY": "EUR_JPY", "GBPJPY": "GBP_JPY",
-    "XAUUSD": "XAU_USD", "XAGUSD": "XAG_USD",
-    "BTCUSD": "BTC_USD", "ETHUSD": "ETH_USD",
-    # FIX C6: NAS100 and US30 were missing — auto-execution orders were being silently rejected by OANDA
-    "NAS100": "NAS100_USD", "US30": "US30_USD",
+    "EURUSD": "EUR_USD", "GBPUSD": "GBP_USD", "USDJPY": "USD_JPY", "AUDUSD": "AUD_USD",
+    "USDCAD": "USD_CAD", "NZDUSD": "NZD_USD", "USDCHF": "USD_CHF", "EURGBP": "EUR_GBP",
+    "EURJPY": "EUR_JPY", "GBPJPY": "GBP_JPY", "XAUUSD": "XAU_USD", "XAGUSD": "XAG_USD",
+    "BTCUSD": "BTC_USD", "ETHUSD": "ETH_USD", "SOLUSD": "SOL_USD", "NAS100": "NAS100_USD",
+    "US30": "US30_USD", "SPX500": "SPX500_USD", "GER40": "DE30_EUR", "USOIL": "WTICO_USD",
 }
 
 
 def _get_oanda_instrument(symbol: str) -> str:
-    """Convert internal symbol (EURUSD) to OANDA format (EUR_USD)."""
-    return OANDA_SYMBOL_MAP.get(symbol.upper(), symbol.replace("USD", "_USD"))
+    clean = symbol.upper().replace("/", "")
+    return OANDA_SYMBOL_MAP.get(clean, symbol.replace("USD", "_USD"))
 
 
 def _lot_to_units(lot_size: float, symbol: str) -> int:
-    """
-    Convert lot size to OANDA units.
-    Forex:  1 standard lot = 100,000 units
-    Gold:   1 standard lot = 100 oz (OANDA trades gold in troy ounces)
-    """
-    if "XAU" in symbol.upper():
-        return max(1, int(lot_size * 100))  # Gold: 0.1 lot = 10 oz
-    return int(lot_size * 100_000)  # Forex: 1 lot = 100,000 units
+    """Convert lot size to OANDA units across all 20 Sovereign assets."""
+    if lot_size <= 0.0:
+        return 0
+    sym = symbol.upper().replace("/", "")
+    if "XAU" in sym:
+        return max(1, int(round(lot_size * 100)))  # Gold: 1 lot = 100 oz
+    elif "XAG" in sym:
+        return max(1, int(round(lot_size * 5_000)))  # Silver: 1 lot = 5,000 oz
+    elif any(k in sym for k in ("NAS", "US30", "SPX", "GER", "DAX")):
+        return max(1, int(round(lot_size)))  # Indices: 1 lot = 1 contract
+    elif any(k in sym for k in ("OIL", "WTI")):
+        return max(1, int(round(lot_size * 1_000)))  # Crude: 1 lot = 1,000 barrels
+    elif any(k in sym for k in ("BTC", "ETH", "SOL")):
+        return max(1, int(round(lot_size)))  # Crypto: 1 lot = 1 unit
+    return max(1, int(round(lot_size * 100_000)))  # Forex: 1 lot = 100,000 units
+
+
+def _format_price(price: float, symbol: str) -> str:
+    """Format price according to broker instrument decimal precision."""
+    sym = symbol.upper().replace("/", "")
+    if "JPY" in sym:
+        return f"{price:.3f}"
+    elif any(k in sym for k in ("XAU", "XAG", "BTC", "ETH", "SOL", "NAS", "US30", "SPX", "GER", "OIL", "WTI")):
+        return f"{price:.2f}"
+    return f"{price:.5f}"
 
 
 class BrokerGateway:
-    """
-    Handles all communication with the OANDA v20 REST API.
-    
-    This is a synchronous class used by the RiskGateway executor.
-    When no API key is set, all methods return mock responses.
-    """
-    
+    """Handles communication with OANDA REST and native MT5 gateway."""
+
     def __init__(self):
         self.api_key = os.getenv("OANDA_API_KEY", "")
         self.account_id = os.getenv("OANDA_ACCOUNT_ID", "")
         self.api_url = OANDA_API_URL
         self._is_live = bool(self.api_key and self.account_id)
         self._circuit_breaker_open_until = 0.0
-        import asyncio
-        self._rate_limiter = asyncio.Semaphore(20)
+        self._rate_limiter_instance = None
         
         if self._is_live:
             logger.info("BrokerGateway: LIVE mode — connected to OANDA account %s", 
                        self.account_id[:4] + "****")
         else:
             logger.info("BrokerGateway: PAPER mode — no broker keys configured")
+    
+    @property
+    def _rate_limiter(self):
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if self._rate_limiter_instance is None or getattr(self, "_rate_limiter_loop", None) != loop:
+            self._rate_limiter_instance = asyncio.Semaphore(20)
+            self._rate_limiter_loop = loop
+        return self._rate_limiter_instance
     
     @property
     def is_live(self) -> bool:
@@ -98,6 +103,7 @@ class BrokerGateway:
     def _headers(self, credentials: dict | None = None) -> dict:
         """Build API headers with the user's decrypted credentials."""
         from crypto_vault import vault
+        api_key = self.api_key or os.getenv("OANDA_API_KEY", "")
         if credentials and "api_key" in credentials:
             # Auto-decrypt if encrypted Fernet token is passed
             raw_key = credentials.get("api_key", "")
@@ -105,13 +111,11 @@ class BrokerGateway:
                 api_key = vault.decrypt_secret(raw_key)
             else:
                 api_key = raw_key
-        else:
-            api_key = os.getenv("OANDA_API_KEY", "")
-
         return {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept-Datetime-Format": "RFC3339",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MehdAI/1.0",
             "X-MBX-APIKEY": api_key,
         }
     
@@ -119,9 +123,23 @@ class BrokerGateway:
         """
         Execute an order on the user's connected exchange using their decrypted keys.
         """
+        if not getattr(decision, "approved", False) or getattr(decision, "calculated_lot_size", 0.0) <= 0.0:
+            return {
+                "mode": "error",
+                "status": "rejected",
+                "broker": "gateway",
+                "reason": f"Risk decision rejected: {getattr(decision, 'rejection_reason', None) or 'Calculated lot size is zero'}",
+            }
+
         from crypto_vault import vault
         if credentials:
             credentials = vault.decrypt_credentials(credentials)
+            # Check if this is an MT5 broker (Exness, XM, IC Markets, FTMO, etc.)
+            exchange_id = (credentials.get("exchange_id") or credentials.get("broker") or "").lower()
+            server = credentials.get("server")
+            if server or exchange_id in ("exness", "mt5", "xm", "icmarkets", "pepperstone", "ftmo"):
+                from mt5_gateway import mt5_gateway
+                return await mt5_gateway.execute_order(order, decision, credentials)
         account_id = credentials.get("account_id") if credentials else os.getenv("OANDA_ACCOUNT_ID", "")
         
         now = time.monotonic()
@@ -157,31 +175,37 @@ class BrokerGateway:
                 }
             }
             
-            # LATENCY ARBITRAGE DEFENSE (The Time-Travel Hack)
-            # If a high-frequency trader crashes the price in the 500ms delay,
-            # this bound physically blocks OANDA from executing the terrible fill.
+            # Latency defense: bounds protect against execution slippage
             if decision.expected_price > 0:
                 pip_size = get_pip_size(order.symbol)
-                max_slippage_pips = 3.0  # Max 3 pips slippage
-                
-                if order.direction == Direction.BUY:
-                    bound = decision.expected_price + (max_slippage_pips * pip_size)
-                else:
-                    bound = decision.expected_price - (max_slippage_pips * pip_size)
-                    
-                payload["order"]["priceBound"] = f"{bound:.5f}"
+                sym_up = order.symbol.upper().replace("/", "")
+                slip_map = {"XAU": 50.0, "XAG": 30.0, "BTC": 50.0, "ETH": 50.0, "NAS": 15.0, "US30": 15.0, "SPX": 15.0}
+                max_slip = next((v for k, v in slip_map.items() if k in sym_up), 3.0)
+                bound = decision.expected_price + (max_slip * pip_size) if order.direction == Direction.BUY else decision.expected_price - (max_slip * pip_size)
+                payload["order"]["priceBound"] = _format_price(bound, order.symbol)
             
-            # Add stop-loss (required by our risk kernel)
-            if decision.stop_loss and not decision.use_virtual_stops:
-                payload["order"]["stopLossOnFill"] = {
-                    "price": f"{decision.stop_loss:.5f}",
-                    "timeInForce": "GTC",  # Good Till Cancelled
-                }
+            # Two-Tier Stop System:
+            # Tier 1: Real strategic SL in virtual stops vault.
+            # Tier 2: Catastrophic disaster hard SL on broker to guarantee zero account wipeout.
+            if decision.stop_loss:
+                if decision.use_virtual_stops:
+                    # Place emergency disaster stop calibrated at 1.5x distance (outside hunt wicks, safe from blowouts)
+                    sl_dist = abs(decision.expected_price - decision.stop_loss) if decision.expected_price > 0 else 0.0050
+                    disaster_sl = (decision.expected_price - (sl_dist * 1.5)) if order.direction == Direction.BUY else (decision.expected_price + (sl_dist * 1.5))
+                    payload["order"]["stopLossOnFill"] = {
+                        "price": _format_price(disaster_sl, order.symbol),
+                        "timeInForce": "GTC",
+                    }
+                else:
+                    payload["order"]["stopLossOnFill"] = {
+                        "price": _format_price(decision.stop_loss, order.symbol),
+                        "timeInForce": "GTC",
+                    }
             
             # Add take-profit if set
             if decision.take_profit and not decision.use_virtual_stops:
                 payload["order"]["takeProfitOnFill"] = {
-                    "price": f"{decision.take_profit:.5f}",
+                    "price": _format_price(decision.take_profit, order.symbol),
                     "timeInForce": "GTC",
                 }
             
@@ -191,7 +215,7 @@ class BrokerGateway:
             start_time = time.monotonic()
             
             async with self._rate_limiter:
-                async with httpx.AsyncClient(timeout=5.0) as client:
+                async with httpx.AsyncClient(timeout=3.0) as client:
                     resp = await client.post(
                         endpoint,
                         headers=self._headers(credentials),
@@ -271,7 +295,7 @@ class BrokerGateway:
                 }
                 
         except httpx.TimeoutException:
-            logger.error("BROKER TIMEOUT: Order for %s did not complete in 10s", order.symbol)
+            logger.error("BROKER TIMEOUT: Order for %s did not complete in 3.0s — dropping connection for safety", order.symbol)
             return {
                 "mode": "live",
                 "status": "timeout",
@@ -289,13 +313,30 @@ class BrokerGateway:
                 "reason": f"Broker communication failed: {str(e)}",
             }
     
-    async def get_account_summary(self) -> dict:
+    async def get_account_summary(self, credentials: dict | None = None) -> dict:
         """
-        Fetch live account balance and equity from OANDA.
+        Fetch live account balance and equity from broker (MT5 or OANDA).
         Called by risk_engine.sync_broker_equity().
         """
-        if not self.is_live:
+        if credentials:
+            from crypto_vault import vault
+            credentials = vault.decrypt_credentials(credentials)
+            exchange_id = (credentials.get("exchange_id") or credentials.get("broker") or "").lower()
+            server = credentials.get("server")
+            if server or exchange_id in ("exness", "mt5", "xm", "icmarkets", "pepperstone", "ftmo"):
+                from mt5_gateway import mt5_gateway
+                return await mt5_gateway.get_account_summary(credentials)
+
+        # Paper mode: return defaults immediately (no broker needed)
+        if not self.is_live and not credentials:
             return {"balance": 10_000.0, "equity": 10_000.0, "mode": "paper"}
+
+        # Check if native MT5 is active on the host machine
+        from mt5_gateway import mt5_gateway
+        if mt5_gateway.is_available():
+            mt5_summary = await mt5_gateway.get_account_summary(credentials or {})
+            if mt5_summary.get("status") == "connected":
+                return mt5_summary
         
         try:
             account_id = os.getenv("OANDA_ACCOUNT_ID", "")
@@ -371,64 +412,69 @@ class BrokerGateway:
             logger.error("OANDA open trades error: %s", e)
             return None
     
+    async def close_trade(self, trade_id: str, account_id: str = "") -> bool:
+        """
+        Closes an open trade on the broker (called by VirtualStopWorker).
+        Supports MT5 tickets and OANDA trade IDs.
+        """
+        if str(trade_id).isdigit():
+            from mt5_gateway import mt5_gateway
+            return await mt5_gateway.close_trade(trade_id)
+
+        if self.is_live:
+            try:
+                acct = account_id or os.getenv("OANDA_ACCOUNT_ID", "")
+                api_url = os.getenv("OANDA_API_URL", OANDA_API_URL)
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.put(
+                        f"{api_url}/v3/accounts/{acct}/trades/{trade_id}/close",
+                        headers=self._headers(),
+                    )
+                return resp.status_code == 200
+            except Exception as e:
+                logger.error("OANDA close trade %s error: %s", trade_id, e)
+                return False
+
+        return True
+
     def _mock_execution(self, order: TradeOrder, decision: RiskDecision) -> dict:
         """Returns a highly realistic mock fill simulating real-world spread and slippage."""
-        # 1. Base price from the live data streamer (ensures trades match the UI's test fuel)
+        # 1. Base price from the live data streamer (BUY at Ask, SELL at Bid)
         snap = streamer.get_latest_snapshot(order.symbol)
-        base_price = snap.bid
+        is_buy = order.direction.value.upper() == "BUY"
+        base_price = (snap.ask if snap.ask > 0 else snap.bid) if is_buy else snap.bid
         
         # 2. Check current time for high-impact hours (volatility proxy)
-        # London/New York session overlap (13:00 - 17:00 UTC) has wild volatility swings
+        # London/New York session overlap (12:00 - 18:00 UTC) has elevated volatility
         current_hour = time.gmtime().tm_hour
         is_volatile_hours = 12 <= current_hour <= 18
         
-        # 3. Calculate dynamic spread and slippage — scaled to the symbol's pip size
-        # Base spread: 1 to 2 pips. Slippage: 0.2 to 3 pips normally, up to 15 pips volatile.
+        # 3. Calculate dynamic slippage — scaled to the symbol's pip size
         pip_size = get_pip_size(order.symbol)
-        base_spread = random.uniform(1.0, 2.0) * pip_size  # 1-2 pips in price units
         
         if is_volatile_hours:
-            slippage = random.uniform(2.0, 15.0) * pip_size  # 2 to 15 pips
+            slippage = random.uniform(1.0, 8.0) * pip_size   # 1 to 8 pips under volatility
         else:
-            slippage = random.uniform(0.2, 3.0) * pip_size   # 0.2 to 3 pips
+            slippage = random.uniform(0.1, 2.0) * pip_size   # 0.1 to 2 pips normal
 
-        # Slippage is always unfavorable to the execution direction:
-        direction_multiplier = 1 if order.direction.value.upper() == "BUY" else -1
-        realistic_fill_price = base_price + (direction_multiplier * (base_spread + slippage))
+        # Slippage is always unfavorable: BUY fills higher, SELL fills lower
+        realistic_fill_price = base_price + slippage if is_buy else base_price - slippage
         
-        total_costs_pips = (base_spread + slippage) / pip_size  # Back to pips for logging
+        slippage_pips = slippage / pip_size
         logger.info(
-            "📊 Paper Fill Sim: Base %.5f | Cost/Slippage: +%.1f pips | Final Fill %.5f", 
-            base_price, total_costs_pips, realistic_fill_price
+            "📊 Paper Fill Sim: %s Base %.5f | Slippage: +%.1f pips | Final Fill %.5f", 
+            "BUY" if is_buy else "SELL", base_price, slippage_pips, realistic_fill_price
         )
 
         return {
             "mode": "paper",
             "status": "simulated",
             "broker": "mock",
-            "fill_price": f"{realistic_fill_price:.5f}",
+            "fill_price": _format_price(realistic_fill_price, order.symbol),
             "units": str(_lot_to_units(decision.calculated_lot_size, order.symbol)),
             "instrument": _get_oanda_instrument(order.symbol),
-            "execution_slippage_pips": f"{total_costs_pips:.1f}"
+            "execution_slippage_pips": f"{slippage_pips:.1f}"
         }
-    async def close_trade(self, trade_id: str, account_id: str) -> bool:
-        """Closes a specific trade (used by Virtual Stop Sniper Engine)."""
-        if not self.is_live: return True
-        api_url = os.getenv("OANDA_API_URL", OANDA_API_URL)
-        endpoint = f"{api_url}/v3/accounts/{account_id}/trades/{trade_id}/close"
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.put(endpoint, headers=self._headers())
-            if resp.status_code == 200:
-                logger.info("🎯 VIRTUAL STOP EXECUTION: Successfully closed trade %s", trade_id)
-                return True
-            else:
-                logger.error("VIRTUAL STOP FAIL: HTTP %d for trade %s", resp.status_code, trade_id)
-                return False
-        except Exception as e:
-            logger.error("VIRTUAL STOP ERROR: %s", e)
-            return False
-
 
 # Singleton instance
 broker_gateway = BrokerGateway()

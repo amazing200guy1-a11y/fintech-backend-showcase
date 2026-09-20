@@ -80,15 +80,17 @@ class SniperEngine:
             return
 
         # STRUCTURAL MARKET CONFIRMATION GATE
+        # BUY requires price ABOVE daily open (bullish structure confirmed).
+        # SELL requires price BELOW daily open (bearish structure confirmed).
         try:
             from state import streamer
             snapshot = streamer.get_latest_snapshot(symbol)
             if snapshot and snapshot.open > 0:
                 if direction_str == "BUY" and current_price < snapshot.open:
-                    logger.warning(f"BLOCKED: Structural Filter failed for {symbol}. {direction_str} attempted below Daily Open ({current_price} < {snapshot.open}).")
+                    logger.warning(f"BLOCKED: Structural Filter failed for {symbol}. BUY attempted below Daily Open ({current_price} < {snapshot.open}). Bearish structure — no long entry.")
                     return
                 if direction_str == "SELL" and current_price > snapshot.open:
-                    logger.warning(f"BLOCKED: Structural Filter failed for {symbol}. {direction_str} attempted above Daily Open ({current_price} > {snapshot.open}).")
+                    logger.warning(f"BLOCKED: Structural Filter failed for {symbol}. SELL attempted above Daily Open ({current_price} > {snapshot.open}). Bullish structure — no short entry.")
                     return
         except Exception as e:
             logger.debug(f"Structural confirmation skipped for {symbol}: {e}")
@@ -128,20 +130,45 @@ class SniperEngine:
             
         pip_size = get_pip_size(symbol)
 
-        is_gold = "XAU" in symbol.upper()
-        pullback_pips = 4.0 if is_gold else 2.0
-        runaway_pips = 10.0 if is_gold else 5.0
-        timeout_seconds = 90 if is_gold else 180
-        
+        sym_upper = symbol.upper().replace("/", "")
+        is_gold = "XAU" in sym_upper
+        is_silver = "XAG" in sym_upper
+        is_crypto = any(k in sym_upper for k in ("BTC", "ETH", "SOL"))
+        is_index = any(k in sym_upper for k in ("NAS", "US30", "SPX", "GER", "DAX"))
+        is_oil = any(k in sym_upper for k in ("OIL", "WTI"))
+
+        if is_gold:
+            pullback_pips = 20.0     # 20 pips ($0.20) — above gold spread ($0.15–$0.25)
+            runaway_pips = 50.0      # 50 pips ($0.50)
+        elif is_silver:
+            pullback_pips = 10.0     # 10 pips ($0.10) — above silver spread
+            runaway_pips = 25.0      # 25 pips ($0.25)
+        elif is_oil:
+            pullback_pips = 10.0     # 10 pips ($0.10) — above crude spread
+            runaway_pips = 25.0      # 25 pips ($0.25)
+        elif is_crypto:
+            pullback_pips = 25.0     # 25 points ($25 on BTC/ETH, $0.25 on SOL)
+            runaway_pips = 60.0      # 60 points
+        elif is_index:
+            pullback_pips = 10.0     # 10 points on US30 / NAS100 / SPX500 / GER40
+            runaway_pips = 25.0      # 25 points
+        else:
+            pullback_pips = 2.0      # 2 pips on standard forex / JPY
+            runaway_pips = 5.0       # 5 pips
+
+        timeout_seconds = 180
+
         pullback_dist = pullback_pips * pip_size
         runaway_dist = runaway_pips * pip_size
-        
+
+        precision = 2 if (is_gold or is_silver or is_oil or is_crypto or is_index) else (3 if "JPY" in sym_upper else 5)
         if direction_str == "BUY":
-            target_price = round(current_price - pullback_dist, 5)
-            cancel_price = round(current_price + runaway_dist, 5)
+            target_price = round(current_price - pullback_dist, precision)
+            cancel_price = round(current_price + runaway_dist, precision)
         else:
-            target_price = round(current_price + pullback_dist, 5)
-            cancel_price = round(current_price - runaway_dist, 5)
+            target_price = round(current_price + pullback_dist, precision)
+            cancel_price = round(current_price - runaway_dist, precision)
+
 
         entry = {
             "sig_id": sig_id,
@@ -150,7 +177,7 @@ class SniperEngine:
             "target_price": target_price,
             "cancel_price": cancel_price,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=48)).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=timeout_seconds)).isoformat(),
             "direction": direction_str,
             "timeout_seconds": timeout_seconds,
             "state": "ARMED"
@@ -229,7 +256,18 @@ class SniperEngine:
                         
                         if is_runaway:
                             spread = snapshot.spread
-                            if spread <= 3.0:
+                            # Symbol-aware spread threshold: Gold/Silver ~50 pips, Crypto ~200,
+                            # Indices ~10, standard Forex ~3 pips.
+                            sym_upper = symbol.upper()
+                            if "XAU" in sym_upper or "XAG" in sym_upper:
+                                spread_threshold = 50.0
+                            elif "BTC" in sym_upper or "ETH" in sym_upper:
+                                spread_threshold = 200.0
+                            elif "NAS" in sym_upper or "SPX" in sym_upper or "US30" in sym_upper:
+                                spread_threshold = 10.0
+                            else:
+                                spread_threshold = 3.0  # Standard forex pairs
+                            if spread <= spread_threshold:
                                 logger.info(f"🚀 BREAKOUT MODE TRIGGERED for {symbol} at {live_price:.5f}! (Runaway without pullback)")
                                 data["state"] = "EXECUTED_BREAKOUT"
                                 data["signal_data"]["breakout_factor"] = 0.5
