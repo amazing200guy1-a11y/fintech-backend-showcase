@@ -1,15 +1,17 @@
 import os
 import httpx
 from models import MarketSnapshot, AIVote
-from consensus.helpers import _get_vault_role, _build_system_prompt, _build_user_message, _parse_llm_json
+from consensus.helpers import _get_vault_role, _build_system_prompt, _build_user_message, _parse_llm_json, _call_openrouter
 
 async def _call_llama(symbol: str, snapshot: MarketSnapshot, client: httpx.AsyncClient) -> AIVote:
-    """Groq Llama 3 — Strategy (Fast)"""
-    api_key = os.getenv("GROQ_API_KEY")
+    """Llama 3.3 / Guardian — Capital Protection (direct via Groq or via OpenRouter)"""
+    _title, _desc = _get_vault_role("sovereign_vault", "Private Data Vault & Risk Guardian", "Enforces hard risk rules and capital protection protocols")
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("TOGETHER_API_KEY")
     if not api_key:
-        raise ValueError("Missing GROQ_API_KEY")
+        if os.getenv("OPENROUTER_API_KEY"):
+            return await _call_openrouter("meta-llama/llama-3.3-70b-instruct", _title, _desc, symbol, snapshot, client, "llama-3.1-70b")
+        raise ValueError("Missing GROQ_API_KEY, TOGETHER_API_KEY, or OPENROUTER_API_KEY")
         
-    _title, _desc = _get_vault_role("sovereign_vault", "Private Data Vault", "Processes trade history locally, never sends data externally")
     sys_prompt = _build_system_prompt(_title, _desc)
     msg = _build_user_message(symbol, snapshot)
     
@@ -17,8 +19,7 @@ async def _call_llama(symbol: str, snapshot: MarketSnapshot, client: httpx.Async
         "https://api.groq.com/openai/v1/chat/completions",
         headers={"Authorization": f"Bearer {api_key}"},
         json={
-            "model": "llama3-70b-8192",
-            "response_format": {"type": "json_object"},
+            "model": "llama-3.3-70b-versatile",
             "messages": [
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": msg}

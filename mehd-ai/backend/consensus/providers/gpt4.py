@@ -1,15 +1,17 @@
 import os
 import httpx
 from models import MarketSnapshot, AIVote
-from consensus.helpers import _get_vault_role, _build_system_prompt, _build_user_message, _parse_llm_json
+from consensus.helpers import _get_vault_role, _build_system_prompt, _build_user_message, _parse_llm_json, _call_openrouter
 
 async def _call_gpt4(symbol: str, snapshot: MarketSnapshot, client: httpx.AsyncClient) -> AIVote:
-    """OpenAI GPT-4o — Strategy"""
+    """OpenAI GPT-4o — Strategy (direct or via OpenRouter)"""
+    _title, _desc = _get_vault_role("strategist_cso", "Chief Strategy Officer", "Synthesizes Pulse data into market situation assessment")
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("Missing OPENAI_API_KEY")
+        if os.getenv("OPENROUTER_API_KEY"):
+            return await _call_openrouter("openai/gpt-4o", _title, _desc, symbol, snapshot, client, "gpt-4o")
+        raise ValueError("Missing OPENAI_API_KEY or OPENROUTER_API_KEY")
         
-    _title, _desc = _get_vault_role("strategist_cso", "Chief Strategy Officer", "Synthesizes Pulse data into market situation assessment")
     sys_prompt = _build_system_prompt(_title, _desc)
     msg = _build_user_message(symbol, snapshot)
     

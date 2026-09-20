@@ -1,15 +1,17 @@
 import os
 import httpx
 from models import MarketSnapshot, AIVote
-from consensus.helpers import _get_vault_role, _build_system_prompt, _build_user_message, _parse_llm_json
+from consensus.helpers import _get_vault_role, _build_system_prompt, _build_user_message, _parse_llm_json, _call_openrouter
 
 async def _call_claude(symbol: str, snapshot: MarketSnapshot, client: httpx.AsyncClient) -> AIVote:
-    """Anthropic Claude Opus — Strategy"""
+    """Anthropic Claude — Strategy (direct or via OpenRouter)"""
+    _title, _desc = _get_vault_role("strategist_risk", "Risk and Ethics Auditor", "Finds problems in the Strategy Officer's plan")
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        raise ValueError("Missing ANTHROPIC_API_KEY")
+        if os.getenv("OPENROUTER_API_KEY"):
+            return await _call_openrouter("anthropic/claude-3.5-sonnet", _title, _desc, symbol, snapshot, client, "claude-3-5-sonnet-20240620")
+        raise ValueError("Missing ANTHROPIC_API_KEY or OPENROUTER_API_KEY")
         
-    _title, _desc = _get_vault_role("strategist_risk", "Risk and Ethics Auditor", "Finds problems in the Strategy Officer's plan")
     sys_prompt = _build_system_prompt(_title, _desc)
     msg = _build_user_message(symbol, snapshot)
     

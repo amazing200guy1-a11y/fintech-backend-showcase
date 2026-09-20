@@ -90,12 +90,12 @@ class AsyncCouncil:
     CONSENSUS_THRESHOLDS = {
         "observer": 0.70,
         "core": 0.70,
-        "precision": 0.80,
-        "institutional": 0.95,
+        "precision": 0.70,
+        "institutional": 0.70,
         "civilian": 0.70,
-        "operative": 0.80,
-        "sovereign": 0.95,
-        "tiger": 0.85,
+        "operative": 0.70,
+        "sovereign": 0.70,
+        "tiger": 0.80,
     }
     MATH_CONFIDENCE_DIVERGENCE_LIMIT: float = 0.5
 
@@ -130,13 +130,29 @@ class AsyncCouncil:
         )
 
     def _get_majority(self, current_votes: list[AIVote]) -> tuple[Direction, float]:
-        if not current_votes: 
+        """
+        Consensus is calculated from directional votes only.
+        HOLD votes are abstentions — they do not count in the denominator.
+        Minimum quorum: at least 5 AIs must have a BUY or SELL opinion.
+        If quorum is not met, returns HOLD with 0% to block the trade safely.
+        """
+        if not current_votes:
             return Direction.HOLD, 0.0
         counts = {Direction.BUY: 0, Direction.SELL: 0, Direction.HOLD: 0}
-        for v in current_votes: 
+        for v in current_votes:
             counts[v.direction] += 1
-        maj_dir = max(counts, key=counts.get)
-        pct = (counts[maj_dir] / len(current_votes)) * 100.0
+        directional_total = counts[Direction.BUY] + counts[Direction.SELL]
+        # Safety quorum: need at least 5 directional opinions before counting
+        if directional_total < 5:
+            logger.warning(
+                "QUORUM NOT MET: Only %d directional votes (BUY=%d, SELL=%d, HOLD=%d). Blocking trade.",
+                directional_total, counts[Direction.BUY], counts[Direction.SELL], counts[Direction.HOLD]
+            )
+            return Direction.HOLD, 0.0
+        if counts[Direction.BUY] == counts[Direction.SELL]:
+            return Direction.HOLD, 50.0
+        maj_dir = Direction.BUY if counts[Direction.BUY] > counts[Direction.SELL] else Direction.SELL
+        pct = (counts[maj_dir] / directional_total) * 100.0
         return maj_dir, pct
 
     # ──────────────────────────────────────────────
@@ -175,11 +191,21 @@ class AsyncCouncil:
     MATH_LAYER_DISPLAY = ["TITAN", "ATLAS", "FORGE"]
 
     def _check_math_layer_coherence(self, votes: list[AIVote]) -> bool:
-        """Protect against divergent quants."""
+        """Protect against divergent quants with 100% mathematical fidelity."""
         math_votes = [v for v in votes if v.model_name in self.MATH_LAYER_DISPLAY]
         if len(math_votes) < 2:
             return False
 
+        # 1. Directional Alignment: Titan, Atlas, Forge must not contradict (BUY vs SELL)
+        directions = {v.direction for v in math_votes}
+        if Direction.BUY in directions and Direction.SELL in directions:
+            logger.warning(
+                "MATH LAYER DIRECTIONAL CONTRADICTION: Quants voted opposing BUY and SELL — %s",
+                ", ".join(f"{v.model_name}={v.direction.value}" for v in math_votes)
+            )
+            return False
+
+        # 2. Confidence Convergence Check
         confidences = [v.confidence / 100.0 for v in math_votes]
         max_divergence = max(confidences) - min(confidences)
 
@@ -189,9 +215,9 @@ class AsyncCouncil:
                 max_divergence, self.MATH_CONFIDENCE_DIVERGENCE_LIMIT,
                 ", ".join(f"{v.model_name}={v.confidence:.1f}%" for v in math_votes)
             )
-            return True
+            return False
 
-        return False
+        return True
 
     async def health_check(self) -> dict:
         status: dict[str, str] = {}

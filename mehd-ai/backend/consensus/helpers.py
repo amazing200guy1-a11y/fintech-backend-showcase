@@ -53,7 +53,7 @@ MODEL_TIMEOUTS = {
 # THE DEN IDENTITY — MEHD AI Proprietary Agent Mapping (11 Primary Models)
 DEN_IDENTITY = {
     "grok-beta": {
-        "display_name": "DON",
+        "display_name": "CIPHER",
         "layer": "THE UNDERWORLD",
         "personality": "Street Intelligence Agent"
     },
@@ -124,6 +124,11 @@ DEN_ALIAS_MAP = {
     "deepseek": "deepseek-chat",
     "openai-o3": "o3-mini",
     "codestral": "codestral-latest",
+    "mistral": "codestral-latest",
+    "titan": "deepseek-chat",
+    "atlas": "o3-mini",
+    "forge": "codestral-latest",
+    "kimi": "kimi-latest",
 }
 
 # ──────────────────────────────────────────────
@@ -265,3 +270,44 @@ def _parse_llm_json(response_text: str, model_name: str, snapshot_id: UUID) -> A
         )
     except Exception as e:
         raise ValueError("Failed to parse JSON from %s: %s" % (model_name, e))
+
+async def _call_openrouter(
+    model_tag: str,
+    role_title: str,
+    role_desc: str,
+    symbol: str,
+    snapshot: MarketSnapshot,
+    client,
+    model_name_alias: str,
+) -> AIVote:
+    """Universal OpenRouter caller routing any model tag using OPENROUTER_API_KEY."""
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError("Missing OPENROUTER_API_KEY")
+
+    sys_prompt = _build_system_prompt(role_title, role_desc)
+    msg = _build_user_message(symbol, snapshot)
+
+    resp = await client.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "https://mehd.ai",
+            "X-Title": "MEHD AI Institutional Quant Swarm",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model_tag,
+            "messages": [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": msg},
+            ],
+            "temperature": 0.2,
+        },
+        timeout=15.0,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    text = data["choices"][0]["message"]["content"]
+    return _parse_llm_json(text, model_name_alias, snapshot.id)
+

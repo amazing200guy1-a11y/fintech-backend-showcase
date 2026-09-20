@@ -15,10 +15,16 @@ MODEL_FUNCTIONS = {
     "gemini": _call_gemini,
     "claude": _call_claude,
     "gpt-4": _call_gpt4,
+    "gpt4": _call_gpt4,
     "llama": _call_llama,
     "deepseek": _call_deepseek,
     "openai-o3": _call_openai_o3,
     "codestral": _call_codestral,
+    "mistral": _call_codestral,
     "kimi": call_kimi,
     "kimi-latest": call_kimi,
+    # Math Layer aliases
+    "titan": _call_deepseek,
+    "atlas": _call_openai_o3,
+    "forge": _call_codestral,
 }

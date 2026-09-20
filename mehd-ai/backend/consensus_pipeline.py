@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from models import MarketSnapshot, ConsensusResult, Direction, AIVote
 from consensus_engine import DEN_IDENTITY
-from intent_capsule import sign_vote
+from intent_capsule import sign_vote, verify_all_capsules
 
 logger = logging.getLogger("mehd.consensus")
 
@@ -30,7 +30,6 @@ async def run_consensus_analysis(
     from consensus_engine import (
         _bias_cache, BIAS_CACHE_TTL, COUNCIL_TIMEOUT_SECONDS,
         DEMO_MODE, MODEL_TIMEOUTS, MODEL_FUNCTIONS,
-        math_guardian, secretary
     )
     from session_manager import get_current_session
 
@@ -51,8 +50,9 @@ async def run_consensus_analysis(
     if market_snapshot.ask < market_snapshot.bid:
         snapshot_errors.append("Inverted spread: ask (%.5f) < bid (%.5f) — data corruption" % (market_snapshot.ask, market_snapshot.bid))
     
-    if market_snapshot.bid > 0 and market_snapshot.spread > (market_snapshot.bid * 0.5):
-        snapshot_errors.append("Spread (%.2f) exceeds 50%% of bid (%.5f) — abnormal market conditions" % (market_snapshot.spread, market_snapshot.bid))
+    raw_spread = market_snapshot.ask - market_snapshot.bid
+    if market_snapshot.bid > 0 and raw_spread > (market_snapshot.bid * 0.5):
+        snapshot_errors.append("Spread (%.5f) exceeds 50%% of bid (%.5f) — abnormal market conditions" % (raw_spread, market_snapshot.bid))
     
     if market_snapshot.close > 0 and market_snapshot.bid > 0:
         price_change_pct = abs(market_snapshot.bid - market_snapshot.close) / market_snapshot.close * 100
@@ -162,6 +162,22 @@ async def run_consensus_analysis(
                     rejection_reason="MATH_VETO: Math Verification Layer (Titan/Atlas/Forge) failed to reach unanimous agreement.",
                 )
 
+            # Cryptographic Intent Capsule Verification (Zero-Trust Mathematical Security)
+            pending_capsules = getattr(council_ref, "_pending_capsules", [])
+            if pending_capsules:
+                capsules_valid, capsule_failures = verify_all_capsules(pending_capsules)
+                if not capsules_valid:
+                    logger.critical("CRYPTOGRAPHIC BREACH: Intent capsule verification failed: %s", capsule_failures)
+                    return ConsensusResult(
+                        votes=all_agent_votes,
+                        final_direction=Direction.HOLD,
+                        consensus_percentage=0.0,
+                        data_purity_score=0.0,
+                        proceed=False,
+                        tier=tier,
+                        rejection_reason=f"SECURITY_VETO: Cryptographic capsule validation failed — {capsule_failures[0]}",
+                    )
+
             # Chairman / Reviewer Synthesis
             reviewer_output = await council_ref._call_reviewer(all_agent_votes, client)
 
@@ -174,14 +190,34 @@ async def run_consensus_analysis(
                 final_dir, pct = council_ref._get_majority(all_agent_votes)
                 chairman_summary = f"Majority vote reached ({pct:.1f}% consensus)."
 
+            # Math Anti-Contradiction Shield: Reviewer cannot invert unanimous Math Layer direction
+            math_directional = [v.direction for v in math_votes if v.direction in (Direction.BUY, Direction.SELL)]
+            if math_directional and all(d == math_directional[0] for d in math_directional):
+                math_consensus_dir = math_directional[0]
+                if final_dir in (Direction.BUY, Direction.SELL) and final_dir != math_consensus_dir:
+                    logger.critical(
+                        "REVIEWER MATH CONTRADICTION: Reviewer output %s but Math Layer unanimously proved %s. Vetoing trade.",
+                        final_dir.value, math_consensus_dir.value
+                    )
+                    return ConsensusResult(
+                        votes=all_agent_votes,
+                        final_direction=Direction.HOLD,
+                        consensus_percentage=0.0,
+                        data_purity_score=data_purity,
+                        proceed=False,
+                        tier=tier,
+                        rejection_reason=f"MATH_VETO: Reviewer decision ({final_dir.value}) contradicted unanimous Math Layer ({math_consensus_dir.value}).",
+                    )
+
             educational_explanation = council_ref._generate_educational_explanation(final_dir, pct, chairman_summary)
 
             # Verification logic
             proceed = True
             rejection_reason = None
-            if pct < 70.0:
+            required_threshold = getattr(council_ref, "CONSENSUS_THRESHOLDS", {}).get(tier, 0.70) * 100.0
+            if pct < required_threshold:
                 proceed = False
-                rejection_reason = f"Consensus ({pct:.1f}%) below 70.0% threshold."
+                rejection_reason = f"Consensus ({pct:.1f}%) below {required_threshold:.1f}% threshold for {tier} tier."
             elif final_dir == Direction.HOLD:
                 proceed = False
                 rejection_reason = "Final decision is HOLD."
@@ -193,6 +229,7 @@ async def run_consensus_analysis(
                 data_purity_score=data_purity,
                 proceed=proceed,
                 tier=tier,
+                required_threshold=required_threshold,
                 chairman_summary=chairman_summary,
                 educational_explanation=educational_explanation,
                 rejection_reason=rejection_reason,
