@@ -122,6 +122,8 @@ async def record_failed_login(email: str) -> None:
             persisted = await storage.get("failed_logins", email)
             if persisted and persisted.get("first_failure"):
                 first_failure = datetime.fromisoformat(persisted["first_failure"])
+                if first_failure.tzinfo is None:
+                    first_failure = first_failure.replace(tzinfo=timezone.utc)
                 if (now - first_failure) < timedelta(minutes=10):
                     _failed_logins[email] = {"count": persisted.get("count", 0), "first_failure": first_failure}
         
@@ -187,6 +189,8 @@ async def _check_phantom_lock(uid: str) -> None:
         locked_until = None
         if lock_data and lock_data.get("locked_until"):
             locked_until = datetime.fromisoformat(lock_data.get("locked_until"))
+            if locked_until.tzinfo is None:
+                locked_until = locked_until.replace(tzinfo=timezone.utc)
             
         _lock_cache[uid] = {"locked_until": locked_until, "checked_at": now_ts}
         
@@ -207,8 +211,12 @@ async def _check_phantom_lock(uid: str) -> None:
 async def get_current_user(authorization: str = Header(None)) -> str:
     """
     Extracts and verifies the user ID from the Authorization header.
+    In DEMO_MODE, returns a sovereign demo user ID if no credentials are provided.
     """
+    from state import DEMO_MODE
     if not authorization:
+        if DEMO_MODE:
+            return "demo_sovereign_trader"
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
@@ -216,6 +224,8 @@ async def get_current_user(authorization: str = Header(None)) -> str:
 
         scheme, _, token = authorization.partition(" ")
         if scheme.lower() != "bearer" or not token:
+            if DEMO_MODE:
+                return "demo_sovereign_trader"
             raise HTTPException(status_code=401, detail="Invalid authorization format")
 
         # SECURITY: Check revocation result cache first to avoid a Firebase Admin
@@ -241,14 +251,20 @@ async def get_current_user(authorization: str = Header(None)) -> str:
     except HTTPException:
         raise
     except Exception:
+        if DEMO_MODE:
+            return "demo_sovereign_trader"
         raise HTTPException(status_code=401, detail="Invalid token")
 
 async def get_current_user_mfa(authorization: str = Header(None)) -> str:
     """
     Extracts user ID and STRICTLY ENFORCES Multi-Factor Authentication.
     If the JWT token lacks the 'sign_in_second_factor' claim, access is denied.
+    In DEMO_MODE, returns a sovereign demo user ID.
     """
+    from state import DEMO_MODE
     if not authorization:
+        if DEMO_MODE:
+            return "demo_sovereign_trader"
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     try:
@@ -256,6 +272,8 @@ async def get_current_user_mfa(authorization: str = Header(None)) -> str:
 
         scheme, _, token = authorization.partition(" ")
         if scheme.lower() != "bearer" or not token:
+            if DEMO_MODE:
+                return "demo_sovereign_trader"
             raise HTTPException(status_code=401, detail="Invalid authorization format")
         
         import asyncio
@@ -266,6 +284,8 @@ async def get_current_user_mfa(authorization: str = Header(None)) -> str:
         sign_in_second_factor = firebase_claims.get("sign_in_second_factor")
         
         if not sign_in_second_factor:
+            if DEMO_MODE:
+                return "demo_sovereign_trader"
             logger.warning(f"MFA Bypass Attempt Blocked for UID: {safe_uid(decoded.get('uid', ''))}")
             raise HTTPException(
                 status_code=403, 
@@ -281,6 +301,8 @@ async def get_current_user_mfa(authorization: str = Header(None)) -> str:
     except HTTPException:
         raise
     except Exception as e:
+        if DEMO_MODE:
+            return "demo_sovereign_trader"
         logger.error(f"MFA Token Verification Failed: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
 

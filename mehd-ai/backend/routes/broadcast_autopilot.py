@@ -55,12 +55,20 @@ async def save_autopilot_config(
 
     # Tier gate: Autopilot and Predator mode access
     tier_name = await get_user_tier_async(uid)
+    cfg.tier = tier_name
     
-    full_auto_tiers = ("institutional", "precision", "operative")
-    assist_tiers = ("core", "institutional", "precision", "operative")
+    if getattr(body, "preferred_lot_size", None) and body.preferred_lot_size > 0:
+        cfg.preferred_lot_size = max(0.01, min(100.0, float(body.preferred_lot_size)))
+    
+    full_auto_tiers = ("sovereign", "institutional", "precision", "operative")
+    assist_tiers = ("core", "sovereign", "institutional", "precision", "operative")
+    
+    if tier_name in ("sovereign", "institutional"):
+        cfg.max_connected_brokers = 5
+        cfg.max_concurrent_positions = max(cfg.max_concurrent_positions, 5)
     
     if tier_name not in assist_tiers:
-        # Observer or unrecognized tier cannot enable autopilot at all
+        # Expired or unrecognized tier cannot enable autopilot at all
         cfg.enabled = False
         cfg.assist_mode = False
         cfg.predator_mode = False
@@ -71,9 +79,9 @@ async def save_autopilot_config(
             cfg.enabled = False
             logger.warning(f"User {uid} (tier: {tier_name}) attempted full auto without assist mode — denied.")
 
-    # Tier gate: only institutional/precision users may enable compounding.
+    # Tier gate: only sovereign/institutional/precision users may enable compounding.
     # Everyone else is silently clamped to OFF to prevent free-tier abuse.
-    compounding_tiers = ("institutional", "precision", "operative")  # operative = legacy institutional
+    compounding_tiers = ("sovereign", "institutional", "precision", "operative")
     if body.compounding_mode != "OFF" and tier_name not in compounding_tiers:
         logger.warning(
             "User %s (tier: %s) attempted to enable compounding_mode=%s — denied.",

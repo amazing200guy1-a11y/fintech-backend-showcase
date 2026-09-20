@@ -19,7 +19,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from auth import get_current_user, get_real_ip, get_uid_rate_key
 from consensus_engine import generate_drawing_commands, generate_mock_candles
-from models import ConsensusResult
+from models import ConsensusResult, get_pip_size, get_pip_value
 from state import (
     den_engine, streamer, risk_client, audit,
     analysis_cache, daily_api_spend_usd,
@@ -79,23 +79,22 @@ async def analyze_symbol(
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     analysis_key = f"{uid}_{today}"
     
-    # SECURITY (VULN-02): Atomic check-and-increment prevents the "100-Hand Grab"
-    # race condition. If 200 requests hit simultaneously, Firestore serializes 
-    # the transactions and only `daily_limit` requests will succeed.
-    success = await storage.check_and_increment("analysis_counts", analysis_key, "count", daily_limit)
-    if not success:
-        # FIX (BUG-03): Upgrade path must match the user's CURRENT tier.
-        # Observer → Core, Core → Precision, Precision → Institutional
-        if tier_name == "precision":
-            upgrade_path = "Institutional"
-        elif tier_name == "core":
-            upgrade_path = "Precision"
-        else:
-            upgrade_path = "Core Trader"
-        raise HTTPException(
-            status_code=429,
-            detail=f"Daily analysis limit reached ({daily_limit}). Upgrade to {upgrade_path} for more capacity.",
-        )
+    # If tier has a positive daily limit (e.g. legacy/free trial limits), enforce check-and-increment.
+    # If daily_limit == -1, user has UNLIMITED 24/7 analysis access.
+    if daily_limit != -1 and daily_limit > 0:
+        success = await storage.check_and_increment("analysis_counts", analysis_key, "count", daily_limit)
+        if not success:
+            # FIX (BUG-03): Upgrade path must match the user's CURRENT tier.
+            if tier_name == "precision":
+                upgrade_path = "Institutional"
+            elif tier_name == "core":
+                upgrade_path = "Precision"
+            else:
+                upgrade_path = "Core Trader"
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily analysis limit reached ({daily_limit}). Upgrade to {upgrade_path} for more capacity.",
+            )
 
     # Get the real live market snapshot
     live_snapshot = streamer.get_latest_snapshot(symbol)
@@ -323,48 +322,60 @@ async def analyze_for_command(
     entry = live_snapshot.bid if direction == "BUY" else live_snapshot.ask
     spread = live_snapshot.ask - live_snapshot.bid
 
-    is_jpy    = "JPY" in symbol
-    is_gold   = "XAU" in symbol
-    is_crypto = symbol in ("BTC/USD", "ETH/USD")
+    sym_upper = symbol.upper().replace("/", "")
+    is_jpy = "JPY" in sym_upper
+    is_gold = "XAU" in sym_upper
+    is_silver = "XAG" in sym_upper
+    is_crypto = any(k in sym_upper for k in ("BTC", "ETH"))
+    is_index = any(k in sym_upper for k in ("NAS", "US30", "SPX"))
 
     if is_crypto:
-        sl_distance = entry * 0.005   # 0.5%
-        tp_distance = entry * 0.012   # 1.2%
+        sl_distance = round(entry * 0.005, 2)   # 0.5% of price
+        tp_distance = round(entry * 0.012, 2)   # 1.2% (1:2.4 RR)
     elif is_gold:
-        sl_distance = 5.00            # $5 SL
-        tp_distance = 12.00           # $12 TP  (1:2.4 RR)
+        sl_distance = 5.00                      # $5.00 SL
+        tp_distance = 12.00                     # $12.00 TP (1:2.4 RR)
+    elif is_silver:
+        sl_distance = 0.25                      # $0.25 SL
+        tp_distance = 0.60                      # $0.60 TP (1:2.4 RR)
+    elif is_index:
+        sl_distance = 50.0 if "US30" in sym_upper else 30.0  # 50 pts US30, 30 pts NAS100
+        tp_distance = sl_distance * 2.4                      # 1:2.4 RR
     elif is_jpy:
-        sl_distance = 0.30            # 30 pips
-        tp_distance = 0.72            # 72 pips (1:2.4 RR)
+        sl_distance = 0.30                      # 30 pips
+        tp_distance = 0.72                      # 72 pips (1:2.4 RR)
     else:
-        sl_distance = 0.0030          # 30 pips
-        tp_distance = 0.0072          # 72 pips (1:2.4 RR)
+        sl_distance = 0.0030                    # 30 pips
+        tp_distance = 0.0072                    # 72 pips (1:2.4 RR)
 
+    precision = 2 if (is_gold or is_silver or is_crypto or is_index) else (3 if is_jpy else 5)
     if direction == "BUY":
-        sl = round(entry - sl_distance, 5)
-        tp = round(entry + tp_distance, 5)
+        sl = round(entry - sl_distance, precision)
+        tp = round(entry + tp_distance, precision)
     else:
-        sl = round(entry + sl_distance, 5)
-        tp = round(entry - tp_distance, 5)
+        sl = round(entry + sl_distance, precision)
+        tp = round(entry - tp_distance, precision)
 
-    # 1% risk on $10k default equity — real equity from broker in production
+    # 1% risk on $10k default equity — unified with HardRiskKernel
     risk_amount = 10_000.0 * 0.01
-    sl_pips = sl_distance * (100 if is_jpy else 10_000) if not is_gold and not is_crypto else sl_distance
-    pip_value = 1.0 if is_gold else (0.1 if is_jpy else 10.0)
-    raw_lot = risk_amount / (sl_pips * pip_value) if sl_pips > 0 else 0.01
+    pip_size = get_pip_size(symbol)
+    sl_pips = sl_distance / pip_size if pip_size > 0 else sl_distance
+    pip_value = get_pip_value(symbol)
+    raw_lot = risk_amount / (sl_pips * pip_value) if (sl_pips > 0 and pip_value > 0) else 0.01
     suggested_lot = round(max(0.01, min(raw_lot, 100.0)), 2)
 
     result = {
         "symbol":        symbol,
         "direction":     direction,
-        "entry":         round(entry, 5),
+        "entry":         round(entry, precision),
         "sl":            sl,
         "tp":            tp,
         "suggested_lot": suggested_lot,
-        "spread_pips":   round(spread * (100 if is_jpy else 10_000), 1),
+        "spread_pips":   round(spread / pip_size, 1) if pip_size > 0 else round(spread, 1),
         "risk_reward":   "1:2.4",
         "tier":          tier_name,
     }
+
 
     if tier_name == "institutional":
         result["auto_execute"]       = True

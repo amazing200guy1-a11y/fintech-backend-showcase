@@ -7,15 +7,12 @@ This is where money is on the line. Every trade request passes
 through the RiskGateway's 4 gates before touching a broker.
 """
 
-from __future__ import annotations
-
 import asyncio
 import logging
-import random
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, HTTPException, Request, Depends, Body
 from slowapi import Limiter
 
 from auth import get_current_user, get_current_user_mfa, get_real_ip, get_uid_rate_key
@@ -41,7 +38,7 @@ limiter = Limiter(key_func=get_uid_rate_key)
 )
 @limiter.limit("5/minute")
 async def execute_trade(
-    request: Request, order: TradeOrder, uid: str = Depends(get_current_user_mfa)
+    request: Request, order: TradeOrder = Body(...), uid: str = Depends(get_current_user_mfa)
 ) -> RiskDecision:
     """
     Submit a trade order. The RiskGateway evaluates it through 4 independent gates:
@@ -133,13 +130,26 @@ async def execute_trade(
                                decision.model_dump(mode="json"), )
             return decision
 
+        # TIER ASSET GATING: Verify user's tier has permission to execute on this symbol
+        from routes.payments import get_user_tier_async, is_symbol_allowed_for_tier
+        user_tier = await get_user_tier_async(uid)
+        if not is_symbol_allowed_for_tier(order.symbol, user_tier):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Execution on {order.symbol} requires a higher subscription tier. Please upgrade to unlock."
+            )
+
         # RISK GATEWAY — THE ONLY PATH TO TRADE EXECUTION
         live_snapshot = streamer.get_latest_snapshot(order.symbol)
 
         # GET VERIFIED CONSENSUS FROM THE BROADCASTER, NOT THE CLIENT
         broadcast = broadcaster.get_latest(order.symbol)
         if not broadcast:
-            raise HTTPException(status_code=400, detail="No verified AI consensus available for this symbol. Trade rejected.")
+            from state import DEMO_MODE, den_engine
+            if DEMO_MODE:
+                broadcast = await den_engine.analyze(order.symbol, live_snapshot, tier="sovereign")
+            else:
+                raise HTTPException(status_code=400, detail="No verified AI consensus available for this symbol. Trade rejected.")
 
         # ── FIX 2: SERVER-SIDE VALIDATION ───────────────────────────────────
         # BEFORE: The server trusted the client's lot_size and risk_percentage.
@@ -155,6 +165,7 @@ async def execute_trade(
         # Client lot_size is completely ignored — Risk Kernel calculates it
         # from account balance and server_risk_pct. We pass 1.0 as a placeholder;
         # the kernel will override it with the safe value.
+        consensus_obj = broadcast.consensus if hasattr(broadcast, "consensus") else broadcast
         internal_order = InternalTradeOrder(
             symbol=order.symbol,
             direction=order.direction,
@@ -162,8 +173,8 @@ async def execute_trade(
             stop_loss=order.stop_loss,
             take_profit=order.take_profit,
             risk_percentage=server_risk_pct,   # ← CLAMPED server-side, never trust client
-            votes=broadcast.consensus.votes,
-            math_layer_votes=[v for v in broadcast.consensus.votes if v.model_name.upper() in ["TITAN", "ATLAS", "FORGE"]],
+            votes=consensus_obj.votes,
+            math_layer_votes=[v for v in consensus_obj.votes if v.model_name.upper() in ["TITAN", "ATLAS", "FORGE"]],
             is_auto_execution=False,
         )
 
@@ -230,7 +241,7 @@ async def execute_trade(
                     decision = RiskDecision(
                         approved=False,
                         calculated_lot_size=0.0,
-                        stop_loss=order.stop_loss or 0.0001,
+                        stop_loss=order.stop_loss,
                         take_profit=order.take_profit,
                         rejection_reason=f"MATH_LAYER_VETO: {veto_reason}",
                     )
@@ -258,6 +269,8 @@ async def execute_trade(
                         "api_key": decrypted_key,
                         "api_secret": decrypted_secret,
                         "account_id": user_vault.get("exchange_id", ""),
+                        "exchange_id": user_vault.get("exchange_id", ""),
+                        "server": user_vault.get("server", ""),
                     }
                 except Exception as e:
                     logger.error("Failed to decrypt user %s broker vault: %s", safe_uid(uid), e)
@@ -317,11 +330,11 @@ async def execute_trade(
                 math_layer={},
                 risk_verification={
                     "Lot size": str(decision.calculated_lot_size),
-                    "Max loss": f"${current_health.balance * server_risk_pct:.2f} ({server_risk_pct*100:.1f}% of balance — server enforced)",
+                    "Max loss": f"${current_health.balance * (server_risk_pct / 100):.2f} ({server_risk_pct:.1f}% of balance — server enforced)",
                     "Stop loss": f"{decision.stop_loss} ✓",
                     "Take profit": f"{decision.take_profit or 'N/A'} ✓",
                     "Volatility": "Normal ✓",
-                    "Gateway": f"SEALED ({gw_result['evaluation_id']})",
+                    "Gateway": f"SEALED ({gw_result.get('evaluation_id', 'SEALED')})",
                 },
                 decision_basis="This trade was not a glitch. It was a calculated decision based on sentiment, technical structure, and mathematical verification. All decisions logged permanently.",
             )
@@ -357,6 +370,8 @@ async def execute_trade(
 
         return decision
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Trade execution failed: %s", e)
         raise HTTPException(
@@ -370,4 +385,13 @@ async def execute_trade(
         # is never permanently stuck. This is the critical guarantee.
         await storage.release_lock(exec_lock_key)
 
+
+# ── Mount Satellite Trading Routers ─────────────────────────
+from routes.trading_broker import router as broker_router
+from routes.trading_candles import router as candles_router
+from routes.trading_catalysts import router as catalysts_router
+
+router.include_router(broker_router)
+router.include_router(candles_router)
+router.include_router(catalysts_router)
 

@@ -65,36 +65,14 @@ async def get_all_latest(request: Request, uid: str = Depends(get_current_user))
     # NOT a dict. We must use get_tier_config() to get the config dict,
     # then check the tier name to determine free vs paid.
     tier_name = await get_user_tier_async(uid)
-    tier_config = get_tier_config(tier_name)
-    is_free = tier_name in ("observer", "scout")  # Legacy 'scout' included for safety
-
-    if is_free:
-        # Free users get delayed data — filter out signals newer than 15 min
-        from datetime import datetime, timezone, timedelta
-
-        cutoff = datetime.now(timezone.utc) - timedelta(
-            seconds=FREE_TIER_DELAY_SECONDS
-        )
-        delayed = {}
-        for symbol, data in latest.items():
-            broadcast_time = data.get("broadcast_time", "")
-            try:
-                bt = datetime.fromisoformat(broadcast_time)
-                if bt <= cutoff:
-                    delayed[symbol] = data
-                else:
-                    delayed[symbol] = {
-                        "symbol": symbol,
-                        "status": "delayed",
-                        "available_in_seconds": int(
-                            (bt - cutoff).total_seconds()
-                        ),
-                        "message": "Upgrade to Core Trader for real-time signals.",
-                    }
-            except (ValueError, TypeError):
-                delayed[symbol] = data
-
-        return {"tier": tier_name, "delay_seconds": FREE_TIER_DELAY_SECONDS, "signals": delayed}
+    if tier_name in ("expired", "observer", "scout"):
+        return {
+            "tier": "expired",
+            "status": "locked",
+            "delay_seconds": 0,
+            "message": "Your 3-day free trial has expired. Subscribe to Core ($79), Precision ($149), or Sovereign ($299) to unlock real-time institutional signals.",
+            "signals": {},
+        }
 
     return {"tier": tier_name, "delay_seconds": 0, "signals": latest}
 
@@ -113,12 +91,15 @@ async def get_latest_for_symbol(
     Enforces daily reveal tokens based on subscription tier.
     """
     tier_name = await get_user_tier_async(uid)
+    if tier_name in ("expired", "observer", "scout"):
+        raise HTTPException(
+            status_code=402,
+            detail="Active subscription required. Your 3-day free trial has expired. Subscribe to Core ($79), Precision ($149), or Sovereign ($299) to view signals.",
+        )
     config = get_tier_config(tier_name)
     daily_limit = config.get("analyses_per_day", 999)
     weekly_limit = config.get("analyses_per_week", 999)
-
-    # If daily limit is 0 but weekly limit > 0, this is the Observer tier (1 per week)
-    if daily_limit == 0 and weekly_limit > 0:
+    if weekly_limit < 999:
         # Enforce weekly token limit
         year, week, _ = datetime.now(timezone.utc).isocalendar()
         token_key = f"{uid}_{year}_W{week}"
@@ -209,16 +190,13 @@ async def stream_broadcasts(request: Request, uid: str = Depends(get_current_use
     eating server memory. After 30 min, the client must reconnect.
     """
     tier_name = await get_user_tier_async(uid)
-    config = get_tier_config(tier_name)
-    
-    is_free = tier_name in ("observer", "scout")  # Legacy 'scout' included for safety
-    
-    if is_free:
-        generator = broadcaster.subscribe_delayed()
-        logger.info(f"User {uid} (Observer) connected to delayed broadcast stream.")
-    else:
-        generator = broadcaster.subscribe()
-        logger.info(f"User {uid} ({tier_name}) connected to live broadcast stream.")
+    if tier_name in ("expired", "observer", "scout"):
+        raise HTTPException(
+            status_code=402,
+            detail="Active subscription required. Your 3-day free trial has expired. Subscribe to Core ($79), Precision ($149), or Sovereign ($299) to connect to the live signal stream.",
+        )
+    generator = broadcaster.subscribe()
+    logger.info(f"User {uid} ({tier_name}) connected to live broadcast stream.")
 
     # Max connection duration: 30 minutes (prevents resource exhaustion)
     MAX_CONNECTION_SECONDS = 30 * 60
@@ -366,5 +344,7 @@ class AutopilotConfigRequest(BaseModel):
     predator_mode: bool = False
     assist_mode: bool = False
     compounding_mode: Literal["OFF", "DYNAMIC SCALING", "INSTITUTIONAL COMPOUNDING"] = "OFF"
+    preferred_lot_size: float = 0.01
+
 
 

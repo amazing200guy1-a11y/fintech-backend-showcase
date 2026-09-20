@@ -31,6 +31,7 @@ class BrokerCredentialsPayload(BaseModel):
     exchange_id: str
     api_key: str
     api_secret: str
+    server: Optional[str] = None
 
 
 @router.get(
@@ -139,7 +140,8 @@ async def accept_terms(request: Request, uid: str = Depends(get_current_user)):
     body = await request.body()
     try:
         data = json.loads(body) if body else {}
-    except Exception:
+    except Exception as e:
+        logger.debug("ToS body parse failed (non-fatal, defaulting to empty): %s", e)
         data = {}
 
     acceptance_record = {
@@ -229,7 +231,8 @@ async def get_command_center_status(uid: str = Depends(get_current_user)):
         from broker_gateway import broker_gateway as _bg
         broker_status = _bg.get_status() if hasattr(_bg, 'get_status') else {"connected": True}
         broker_connected = broker_status.get("connected", True)
-    except Exception:
+    except Exception as e:
+        logger.debug("Broker gateway status check failed (non-fatal): %s", e)
         broker_connected = False
         
     if not broker_connected:
@@ -241,7 +244,8 @@ async def get_command_center_status(uid: str = Depends(get_current_user)):
     try:
         from consensus_engine import engine
         consensus_healthy = engine is not None
-    except Exception:
+    except Exception as e:
+        logger.debug("Consensus engine availability check failed (non-fatal): %s", e)
         consensus_healthy = False
         
     if not consensus_healthy:
@@ -279,6 +283,7 @@ async def get_command_center_status(uid: str = Depends(get_current_user)):
     summary="Connect exchange API keys securely",
     tags=["Account"],
 )
+@router.post("/account/broker", include_in_schema=False)
 @limiter.limit("5/minute")
 async def connect_broker(
     request: Request, payload: BrokerCredentialsPayload, uid: str = Depends(get_current_user)
@@ -290,12 +295,15 @@ async def connect_broker(
     if not payload.api_key or not payload.api_secret:
         raise HTTPException(status_code=400, detail="API key and secret required.")
 
-    # Whitelist check: only allow known exchanges
-    ALLOWED_EXCHANGES = {"binance", "bybit", "exness"}
+    # Whitelist check: allow all supported brokers and platforms
+    ALLOWED_EXCHANGES = {
+        "binance", "bybit", "exness", "oanda", "mt5", 
+        "pepperstone", "icmarkets", "xm", "deriv", "metaapi"
+    }
     if payload.exchange_id.lower() not in ALLOWED_EXCHANGES:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported exchange '{payload.exchange_id}'. Allowed: {', '.join(ALLOWED_EXCHANGES)}"
+            detail=f"Unsupported exchange '{payload.exchange_id}'. Allowed: {', '.join(sorted(ALLOWED_EXCHANGES))}"
         )
 
     encrypted_key = encryption.encrypt(payload.api_key)
@@ -305,6 +313,7 @@ async def connect_broker(
         "exchange_id": payload.exchange_id.lower(),  # Normalize to lowercase
         "encrypted_api_key": encrypted_key,
         "encrypted_api_secret": encrypted_secret,
+        "server": payload.server or "",
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     
@@ -312,5 +321,35 @@ async def connect_broker(
     await storage.set("broker_vaults", uid, vault_data)
     
     return {"status": "success", "message": "Keys encrypted and stored in secure vault."}
+
+
+@router.get(
+    "/broker/summary",
+    summary="Get real-time balance and equity from connected broker",
+    tags=["Account"],
+)
+@router.get("/account/broker/summary", include_in_schema=False)
+async def get_broker_summary(uid: str = Depends(get_current_user)):
+    """
+    Fetches real-time live balance, equity, and margin from the user's connected broker.
+    Supports MT5 (Exness, XM, IC Markets, FTMO) and REST (OANDA).
+    """
+    from broker_gateway import broker_gateway
+    user_vault = await storage.get("broker_vaults", uid)
+    broker_creds = None
+    if user_vault:
+        try:
+            decrypted_key = encryption.decrypt(user_vault.get("encrypted_api_key", ""))
+            decrypted_secret = encryption.decrypt(user_vault.get("encrypted_api_secret", ""))
+            broker_creds = {
+                "exchange_id": user_vault.get("exchange_id", ""),
+                "api_key": decrypted_key,
+                "api_secret": decrypted_secret,
+                "server": user_vault.get("server", ""),
+            }
+        except Exception as e:
+            logger.error("Failed to decrypt broker vault for %s: %s", safe_uid(uid), e)
+
+    return await broker_gateway.get_account_summary(credentials=broker_creds)
 
 
