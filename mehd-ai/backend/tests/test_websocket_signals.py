@@ -107,3 +107,25 @@ async def test_connection_manager_backpressure_drop_oldest():
     assert third["id"] == 4
 
     await manager.disconnect(ws)
+
+
+@pytest.mark.asyncio
+async def test_connection_manager_ip_tracking_and_cleanup():
+    """Verify that ConnectionManager tracks per-IP connections and cleans up on disconnect."""
+    manager = ConnectionManager(queue_maxsize=10)
+    ws1 = MockWebSocket()
+    ws2 = MockWebSocket()
+
+    await manager.connect(ws1, client_ip="192.168.1.50")
+    await manager.connect(ws2, client_ip="192.168.1.50")
+
+    assert manager.get_ip_count("192.168.1.50") == 2
+    assert manager.client_count == 2
+
+    await manager.disconnect(ws1)
+    assert manager.get_ip_count("192.168.1.50") == 1
+    assert manager.client_count == 1
+
+    await manager.disconnect(ws2)
+    assert manager.get_ip_count("192.168.1.50") == 0
+    assert manager.client_count == 0

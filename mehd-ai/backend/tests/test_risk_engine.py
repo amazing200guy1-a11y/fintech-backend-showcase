@@ -108,6 +108,26 @@ class TestOnePercentRule:
         assert decision.calculated_lot_size == 0.20  # Capped to exactly the safe level
 
     @pytest.mark.anyio
+    async def test_silver_pip_value_and_lot_sizing(self, kernel):
+        """
+        Silver: 1 lot = 5,000 oz. Pip value = $50/pip/lot.
+        $10,000 balance, 1% = $100 risk.
+        XAGUSD entry=30.00, SL=29.80 -> 20 pips.
+        Safe lots = $100 / (20 × $50) = 0.10 lots.
+        """
+        assert kernel._get_pip_value("XAGUSD") == 50.0
+        assert kernel._get_pip_value("XAUUSD") == 1.0
+        order = TradeOrder(
+            symbol="XAGUSD",
+            direction=Direction.BUY,
+            lot_size=1.0,
+            stop_loss=29.80,
+        )
+        decision = await kernel.evaluate(order, current_price=30.00)
+        assert decision.approved is True
+        assert decision.calculated_lot_size == 0.10
+
+    @pytest.mark.anyio
     async def test_tiny_account_still_protected(self, kernel):
         """
         $100 balance, 1% risk = $1 max risk.
@@ -358,3 +378,35 @@ class TestEdgeCases:
         assert decision.rejection_reason is None
         assert decision.id is not None
         assert decision.timestamp is not None
+
+    def test_negative_equity_blocks_trading_in_user_lot_size(self, kernel):
+        """Negative or zero equity must return 0.0 lots immediately."""
+        from types import SimpleNamespace
+        cfg = SimpleNamespace(
+            compounding_mode="ON",
+            simulated_equity=-50.0,
+            current_drawdown_pct=0.0,
+            risk_per_trade=1.0,
+            consecutive_losses=0,
+            consecutive_wins=0,
+            predator_mode=False,
+        )
+        lot = kernel.calculate_user_lot_size(cfg, stop_loss_pips=20.0, consensus=80.0, current_spread=1.0, symbol="EURUSD")
+        assert lot == 0.0
+
+    def test_drawdown_fallback_respects_max_allowed_loss(self, kernel):
+        """High drawdown fallback must not return 0.01 if 0.01 breaches account risk."""
+        from types import SimpleNamespace
+        cfg = SimpleNamespace(
+            compounding_mode="ON",
+            simulated_equity=50.0, # $50 account
+            current_drawdown_pct=5.5, # triggers fallback
+            risk_per_trade=1.0, # $0.50 max loss
+            consecutive_losses=0,
+            consecutive_wins=0,
+            predator_mode=False,
+        )
+        # EURUSD: 0.01 lot * 20 pips * $10 = $2.00 > $0.50 max loss -> MUST BLOCK (return 0.0)
+        lot = kernel.calculate_user_lot_size(cfg, stop_loss_pips=20.0, consensus=80.0, current_spread=1.0, symbol="EURUSD")
+        assert lot == 0.0
+

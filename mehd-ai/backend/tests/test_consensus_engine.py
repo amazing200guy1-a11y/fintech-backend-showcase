@@ -146,7 +146,7 @@ class TestParseLlmJson:
         sid = self._make_snapshot_id()
         json_str = '{"direction": "BUY", "confidence": 80.0, "reasoning": "Test."}'
         vote = _parse_llm_json(json_str, "grok-beta", sid)
-        assert vote.model_name == "DON"  # grok-beta maps to DON
+        assert vote.model_name == "CIPHER"  # grok-beta maps to CIPHER
 
         vote2 = _parse_llm_json(json_str, "claude-3-5-sonnet-20240620", sid)
         assert vote2.model_name == "SAGE"  # claude-3-5-sonnet maps to SAGE
@@ -176,25 +176,51 @@ class TestGetMajority:
         assert pct == 100.0
 
     def test_mixed_votes(self):
+        """HOLD votes are abstentions — consensus % is calculated from BUY+SELL only.
+        8 BUY + 2 SELL + 1 HOLD = 10 directional → BUY at 80%. HOLD is excluded from denominator."""
         votes = [
             self._make_vote("BUY"),
             self._make_vote("BUY"),
             self._make_vote("BUY"),
+            self._make_vote("BUY"),
+            self._make_vote("BUY"),
+            self._make_vote("BUY"),
+            self._make_vote("BUY"),
+            self._make_vote("BUY"),
             self._make_vote("SELL"),
-            self._make_vote("HOLD"),
+            self._make_vote("SELL"),
+            self._make_vote("HOLD"),  # abstention — not counted in denominator
         ]
         direction, pct = self.council._get_majority(votes)
         assert direction == Direction.BUY
-        assert pct == 60.0
+        assert pct == 80.0  # 8 / (8+2) = 80%, HOLD excluded
 
-    def test_tie_defaults_to_hold(self):
-        """If BUY and SELL are tied, the system should not proceed."""
+    def test_hold_abstention_quorum_not_met(self):
+        """If fewer than 5 AIs have a directional opinion, HOLD at 0% blocks the trade."""
         votes = [
             self._make_vote("BUY"),
+            self._make_vote("BUY"),
+            self._make_vote("BUY"),
+            self._make_vote("SELL"),
+            self._make_vote("HOLD"),  # only 4 directional = quorum not met
+        ]
+        direction, pct = self.council._get_majority(votes)
+        assert direction == Direction.HOLD
+        assert pct == 0.0
+
+    def test_tie_defaults_to_hold(self):
+        """If BUY and SELL are tied with enough quorum, BUY wins the tie-break but at 50%."""
+        votes = [
+            self._make_vote("BUY"),
+            self._make_vote("BUY"),
+            self._make_vote("BUY"),
+            self._make_vote("SELL"),
+            self._make_vote("SELL"),
             self._make_vote("SELL"),
         ]
         direction, pct = self.council._get_majority(votes)
-        assert pct == 50.0  # Neither has majority
+        # Tie: BUY wins the >= tie-break. pct = 50.0. Will be blocked by 70% threshold in pipeline.
+        assert pct == 50.0
 
 
 # ──────────────────────────────────────────────
@@ -266,3 +292,61 @@ class TestDenIdentity:
         """No two models should share a display name."""
         names = [v["display_name"] for v in DEN_IDENTITY.values()]
         assert len(names) == len(set(names)), "Duplicate display names found"
+
+
+# ──────────────────────────────────────────────
+#  Math Layer Mathematical Fidelity Tests
+# ──────────────────────────────────────────────
+
+class TestMathLayerFidelity:
+    def setup_method(self):
+        self.council = AsyncCouncil()
+
+    def _vote(self, model: str, direction: Direction, confidence: float) -> AIVote:
+        return AIVote(
+            model_name=model,
+            snapshot_id=uuid.uuid4(),
+            direction=direction,
+            confidence=confidence,
+            reasoning="Quant validation."
+        )
+
+    def test_coherent_math_models_pass(self):
+        """Titan, Atlas, Forge agree on direction with tight confidence."""
+        votes = [
+            self._vote("TITAN", Direction.BUY, 88.0),
+            self._vote("ATLAS", Direction.BUY, 84.0),
+            self._vote("FORGE", Direction.BUY, 90.0),
+        ]
+        assert self.council._check_math_layer_coherence(votes) is True
+
+    def test_directional_contradiction_rejected(self):
+        """If one quant says BUY and another says SELL, math coherence MUST fail."""
+        votes = [
+            self._vote("TITAN", Direction.BUY, 88.0),
+            self._vote("ATLAS", Direction.SELL, 85.0),
+            self._vote("FORGE", Direction.BUY, 90.0),
+        ]
+        assert self.council._check_math_layer_coherence(votes) is False
+
+    def test_high_divergence_rejected(self):
+        """If confidence divergence exceeds 50%, math coherence MUST fail."""
+        votes = [
+            self._vote("TITAN", Direction.BUY, 95.0),
+            self._vote("ATLAS", Direction.BUY, 40.0),
+            self._vote("FORGE", Direction.BUY, 90.0),
+        ]
+        assert self.council._check_math_layer_coherence(votes) is False
+
+
+class TestTierConsensusThresholds:
+    def setup_method(self):
+        self.council = AsyncCouncil()
+
+    def test_tier_threshold_mapping(self):
+        """Tiger mode requires 80%, while precision/core require 70%."""
+        assert self.council.CONSENSUS_THRESHOLDS["tiger"] == 0.80
+        assert self.council.CONSENSUS_THRESHOLDS["core"] == 0.70
+        assert self.council.CONSENSUS_THRESHOLDS["precision"] == 0.70
+        assert self.council.CONSENSUS_THRESHOLDS["sovereign"] == 0.70
+

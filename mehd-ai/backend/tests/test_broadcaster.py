@@ -127,18 +127,19 @@ class TestNotifications:
     """Push notifications must only fire for strong signals."""
 
     def test_strong_signal_generates_notification(self, mock_signal):
-        """93% consensus should generate a notification (threshold is 92%)."""
+        """Signals above the 75% threshold should generate a push notification."""
+        mock_signal.consensus.consensus_percentage = 80.0
         notif = mock_signal.to_notification()
         assert notif is not None
         assert "EUR/USD" in notif["title"]
         assert "BUY" in notif["title"]
-        assert "93%" in notif["body"]
+        assert "80%" in notif["body"]
 
     def test_weak_signal_suppressed(self, mock_signal):
-        """Below 70% consensus should NOT generate a notification."""
-        mock_signal.consensus.consensus_percentage = 55.0
+        """Signals below 75% consensus should NOT generate a push notification."""
+        mock_signal.consensus.consensus_percentage = 70.0
         notif = mock_signal.to_notification()
-        assert notif is None  # Don't spam users
+        assert notif is None  # Don't spam users with sub-75% signals
 
     def test_notification_data_complete(self, mock_signal):
         """Notification data payload must have all required fields."""
@@ -183,11 +184,20 @@ class TestHistory:
 class TestConfiguration:
     """Broadcast configuration sanity checks."""
 
-    def test_fifteen_pairs_monitored(self):
-        """Must monitor all 15 institutional pairs."""
-        assert len(BROADCAST_PAIRS) == 15
+    def test_twenty_pairs_monitored(self):
+        """Must monitor all 20 institutional Top Sovereign Matrix pairs."""
+        assert len(BROADCAST_PAIRS) == 20
         assert "EUR/USD" in BROADCAST_PAIRS
+        assert "NZD/USD" in BROADCAST_PAIRS
+        assert "EUR/GBP" in BROADCAST_PAIRS
         assert "XAU/USD" in BROADCAST_PAIRS
+        assert "USOIL" in BROADCAST_PAIRS
+        assert "US30" in BROADCAST_PAIRS
+        assert "SPX500" in BROADCAST_PAIRS
+        assert "GER40" in BROADCAST_PAIRS
+        assert "BTC/USD" in BROADCAST_PAIRS
+        assert "ETH/USD" in BROADCAST_PAIRS
+        assert "SOL/USD" in BROADCAST_PAIRS
 
     def test_status_structure(self, broadcaster_instance):
         """Status must return all required fields."""
@@ -196,7 +206,7 @@ class TestConfiguration:
         assert "cycle_count" in status
         assert "total_broadcasts" in status
         assert "pairs_monitored" in status
-        assert status["pairs_monitored"] == 15
+        assert status["pairs_monitored"] == 20
 
 
 # ──────────────────────────────────────────────
