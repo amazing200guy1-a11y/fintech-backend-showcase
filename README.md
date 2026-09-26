@@ -1,4 +1,4 @@
-﻿# 🏛️ MEHD AI — Production Quantitative Risk & Execution Engine
+# 🏛️ ApexRisk-Core — Enterprise Quantitative Risk & Execution Kernel
 
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
@@ -6,7 +6,7 @@
 ![Architecture](https://img.shields.io/badge/Architecture-Event--Driven%20Async-7928CA?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
-**MEHD AI** is an enterprise-grade, asynchronous quantitative execution and risk-enforcement backend built in Python. Designed as a high-throughput algorithmic decision workstation, it coordinates an **11-agent consensus voting swarm**, an unbypassable **HardRiskKernel** for deterministic capital preservation, and non-custodial broker execution bridges across Forex, Commodities, Equity Indices, and 24/7 Crypto.
+**ApexRisk-Core** is an enterprise-grade, asynchronous quantitative execution and risk-enforcement backend built in Python. Designed as a high-throughput algorithmic decision workstation, it coordinates an **11-agent consensus voting swarm**, an unbypassable **HardRiskKernel** for deterministic capital preservation, and non-custodial broker execution bridges across Forex, Commodities, Equity Indices, and 24/7 Crypto.
 
 ---
 
